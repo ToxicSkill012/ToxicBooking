@@ -98,7 +98,7 @@ a{text-decoration:none;color:inherit}
 /* 🐥 Экран техработ — утёнок-инженер (анимация внутри SVG = не ломается в WebView) */
 .duckwrap{animation:duckFloat 3.4s ease-in-out infinite}
 @keyframes duckFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-@keyframes tourPop{0%{transform:scale(.94);opacity:.5}100%{transform:scale(1);opacity:1}}
+@keyframes spotGlow{0%,100%{box-shadow:0 0 0 9999px rgba(4,4,14,.82),0 0 16px rgba(196,255,62,.3)}50%{box-shadow:0 0 0 9999px rgba(4,4,14,.82),0 0 26px rgba(196,255,62,.55)}}
 .spark{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);opacity:0;animation:sparkFly 1.5s ease-out infinite;pointer-events:none}
 @keyframes sparkFly{0%{opacity:0;transform:translate(0,0) scale(.3)}22%{opacity:1;transform:translate(4px,3px) scale(1)}100%{opacity:0;transform:translate(20px,15px) scale(.2)}}
 .mp{position:absolute;width:5px;height:5px;border-radius:50%;opacity:.5;animation:mpFloat 5s ease-in-out infinite;box-shadow:0 0 8px currentColor;pointer-events:none}
@@ -508,22 +508,22 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
   <div style="position:absolute;bottom:max(env(safe-area-inset-bottom,0px),28px);font-family:var(--m);font-size:10px;color:var(--t3);letter-spacing:2px">@TOXICSKILL_BREST</div>
 </div>
 <!-- ════ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ ════ -->
-<div id="hints-overlay" style="position:absolute;inset:0;z-index:500;display:none;background:rgba(4,4,14,.9);align-items:center;justify-content:center;padding:24px">
-  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 70% 45% at 50% 8%,rgba(196,255,62,.1),transparent 60%),radial-gradient(ellipse 60% 40% at 50% 100%,rgba(75,158,255,.08),transparent 60%);pointer-events:none"></div>
-  <div id="tour-card" style="position:relative;width:100%;max-width:330px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1.5px solid var(--lime15);border-radius:26px;padding:30px 24px 22px;box-shadow:0 24px 70px rgba(0,0,0,.65),0 0 40px rgba(196,255,62,.07)">
-    <div style="position:absolute;top:0;left:26px;right:26px;height:1.5px;background:linear-gradient(90deg,transparent,var(--lime),transparent);opacity:.65"></div>
-    <div style="text-align:center">
-      <div id="tour-ico-wrap" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:92px;height:92px;margin-bottom:16px">
-        <div id="tour-halo" style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(196,255,62,.2),transparent 68%);animation:glow-pulse 2.6s ease-in-out infinite"></div>
-        <div style="position:absolute;inset:8px;border-radius:50%;border:1.5px solid var(--lime15)"></div>
-        <div id="tour-ico" style="position:relative;font-size:44px;line-height:1"></div>
-      </div>
-      <div id="tour-title" style="font-family:var(--F);font-size:22px;font-weight:800;letter-spacing:-.4px;background:linear-gradient(120deg,#fff 28%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:9px"></div>
-      <div id="tour-text" style="font-size:13.5px;color:var(--t2);line-height:1.65;min-height:66px"></div>
+<div id="hints-overlay" style="position:absolute;inset:0;z-index:500;display:none;pointer-events:auto" onclick="if(event.target.id==='hints-overlay')nextHint()">
+  <div id="hint-spotlight" style="position:absolute;border-radius:20px;box-shadow:0 0 0 9999px rgba(4,4,14,.82);border:2px solid var(--lime);transition:all .42s var(--e);pointer-events:none;animation:spotGlow 2s ease-in-out infinite"></div>
+  <div id="hint-bubble" style="position:absolute;background:linear-gradient(165deg,var(--s2),var(--s1));border:1.5px solid var(--lime30);border-radius:20px;padding:17px 18px 15px;box-shadow:0 16px 46px rgba(0,0,0,.6),0 0 28px rgba(196,255,62,.12);transition:all .42s var(--e)">
+    <div style="position:absolute;top:0;left:20px;right:20px;height:1.5px;background:linear-gradient(90deg,transparent,var(--lime),transparent);opacity:.6"></div>
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+      <div id="hint-ico" style="font-size:20px;line-height:1"></div>
+      <div id="hint-title" style="font-family:var(--F);font-size:14.5px;font-weight:800;color:var(--lime);letter-spacing:-.2px"></div>
     </div>
-    <div id="hint-dots" style="display:flex;gap:6px;justify-content:center;margin:18px 0 16px"></div>
-    <button id="hint-next" onclick="nextHint()" class="BTN" style="background:linear-gradient(135deg,var(--lime),var(--cyan));color:#000;font-weight:800">Далее</button>
-    <button onclick="endHints()" style="width:100%;margin-top:9px;padding:11px;border-radius:13px;background:transparent;border:none;color:var(--t3);font-size:12px;font-weight:600;cursor:pointer">Пропустить экскурс</button>
+    <div id="hint-text" style="font-size:12.8px;color:var(--t2);line-height:1.6;margin-bottom:14px"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div id="hint-dots" style="display:flex;gap:5px"></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button onclick="endHints()" style="padding:8px 11px;border-radius:10px;background:transparent;border:none;color:var(--t3);font-size:11.5px;font-weight:600;cursor:pointer">Пропустить</button>
+        <button onclick="nextHint()" id="hint-next" style="padding:9px 17px;border-radius:11px;background:linear-gradient(135deg,var(--lime),var(--cyan));border:none;color:#000;font-size:12px;font-weight:800;cursor:pointer">Далее</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1282,9 +1282,12 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
       <div id="bug-shot-x" onclick="event.stopPropagation();clearBugShot()" style="display:none;width:28px;height:28px;flex-shrink:0;border-radius:9px;background:rgba(255,63,96,.12);border:1px solid rgba(255,63,96,.3);color:var(--red);font-size:13px;display:none;align-items:center;justify-content:center;cursor:pointer">✕</div>
     </div>
 
-    <div style="display:flex;gap:9px;align-items:flex-start;padding:11px 13px;border-radius:13px;background:linear-gradient(160deg,rgba(196,255,62,.06),rgba(42,237,181,.03));border:1px solid var(--lime15);margin-bottom:14px">
-      <span style="font-size:15px;flex-shrink:0">🤖</span>
-      <span style="font-size:10.5px;color:var(--t2);line-height:1.55">К репорту <b style="color:var(--lime)">автоматически</b> приложим экран, устройство, версию и тех-детали — вводить ничего не нужно.</span>
+    <div style="padding:12px 14px;border-radius:14px;background:linear-gradient(160deg,rgba(196,255,62,.07),rgba(42,237,181,.03));border:1px solid var(--lime15);margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:15px">🩺</span>
+        <span style="font-size:11.5px;font-weight:800;color:var(--lime)">Приложение уже всё собрало само</span>
+      </div>
+      <div id="bug-diag-live" style="font-size:10.5px;color:var(--t2);line-height:1.75"></div>
     </div>
 
     <button class="BTN" onclick="sendBug()" style="background:var(--grad-main);font-weight:800"><span data-i="bugSend">📤 Отправить</span></button>
@@ -1888,6 +1891,7 @@ function go(id){
   document.getElementById(D.cur)?.classList.remove('on')
   document.getElementById(id)?.classList.add('on')
   D.cur=id;buildNav(id)
+  try{logAct('экран: '+id)}catch(e){}
   // Ушли с онбординга — гасим его слайдер (иначе крутится весь сеанс)
   if(id!=='ob'&&_obTimer){clearInterval(_obTimer);_obTimer=null}
   try{if(id==='bklist')renderBkList()}catch(e){/*silenced*/}
@@ -3307,6 +3311,8 @@ function openM(id){
   const el=document.getElementById(id);if(!el)return
   if(el.style.display==='none')el.style.display=''
   requestAnimationFrame(()=>el.classList.add('open'))
+  if(id==='bug-m'){try{renderBugDiag()}catch(e){}}
+  try{logAct('открыл: '+id)}catch(e){}
 }
 function closeM(id){
   const el=document.getElementById(id);if(!el)return
@@ -3334,6 +3340,21 @@ async function testBot(){
 }
 
 let _bugCat='',_bugShot=null
+function renderBugDiag(){
+  const box=document.getElementById('bug-diag-live');if(!box)return
+  const d=buildDiagReport()
+  const row=(ic,t)=>`<div style="display:flex;gap:7px"><span style="flex-shrink:0">${ic}</span><span>${t}</span></div>`
+  let h=''
+  h+=row('🧭',`Экран: <b style="color:var(--txt)">${D.cur||'?'}</b> · версия ${typeof WN_VERSION!=='undefined'?WN_VERSION:'?'}`)
+  h+=row('📱',`${d.plat}${d.pver?' '+d.pver:''} · ${d.screen} · сеть ${d.net}`)
+  const problems=_freezeLog.length+_errLog.length+_netLog.length
+  if(_freezeLog.length)h+=row('🔴',`<b style="color:var(--red)">Зафиксировано зависаний: ${_freezeLog.length}</b> — где именно, уже знаем`)
+  if(_errLog.length)h+=row('⚠️',`<b style="color:var(--gold)">Ошибок в работе: ${_errLog.length}</b> — приложены к отчёту`)
+  if(_netLog.length)h+=row('📡',`<b style="color:var(--gold)">Проблем со связью: ${_netLog.length}</b>`)
+  if(!problems)h+=row('✅',`Сбоев не зафиксировано — опиши, что не так`)
+  if(_actLog.length)h+=row('👣',`Последние действия (${Math.min(6,_actLog.length)}) — приложим автоматически`)
+  box.innerHTML=h
+}
 function pickBugCat(el,v){
   _bugCat=(_bugCat===v)?'':v
   document.querySelectorAll('.bugchip').forEach(c=>c.classList.remove('on'))
@@ -3382,21 +3403,25 @@ function sendBug(){
   const txt=document.getElementById('bug-txt').value.trim()
   const where=_bugCat
   if(!txt){toast(_('bugEmpty'),'⚠️');return}
-  let plat='web',pver=''
-  try{const twa=window.Telegram?.WebApp;if(twa){plat=twa.platform||'tg';pver=twa.version||''}}catch(e){}
-  const ctx=
-    `\n──────────\n`+
-    `🧭 Экран: ${D.cur||'?'} · 🏷 ${typeof WN_VERSION!=='undefined'?WN_VERSION:'?'}\n`+
-    `📱 ${plat}${pver?' '+pver:''} · ${window.innerWidth}×${window.innerHeight} · ${D.theme||'dark'} · ${D.lang}\n`+
-    `🆔 TG: ${D.user._tgId||'—'}`+
-    (_errLog.length?`\n⚠️ JS-ошибки:\n${_errLog.map(e=>'· '+e).join('\n')}`:'')
+  const d=buildDiagReport()
+  // 🩺 Автоотчёт: всё собрано приложением, пользователь ничего не вводит
+  let ctx='\n──── АВТОДИАГНОСТИКА ────\n'+
+    `🧭 Экран: <b>${D.cur||'?'}</b> · версия ${typeof WN_VERSION!=='undefined'?WN_VERSION:'?'}\n`+
+    `📱 ${d.plat}${d.pver?' '+d.pver:''} · ${d.screen} · ${D.theme||'dark'} · ${D.lang}\n`+
+    `⚙️ ОЗУ ${d.mem} · ядер ${d.cores} · сеть ${d.net}${d.jsMem}\n`+
+    `⏱ В приложении: ${d.uptime}\n`+
+    `🆔 TG: ${D.user._tgId||'—'}`
+  if(_freezeLog.length) ctx+=`\n\n🔴 <b>ЗАВИСАНИЯ:</b>\n`+_freezeLog.map(x=>'· '+x).join('\n')
+  if(_errLog.length)    ctx+=`\n\n⚠️ <b>ОШИБКИ JS:</b>\n`+_errLog.map(x=>'· '+x).join('\n')
+  if(_netLog.length)    ctx+=`\n\n📡 <b>СЕТЬ:</b>\n`+_netLog.map(x=>'· '+x).join('\n')
+  if(_actLog.length)    ctx+=`\n\n👣 <b>ПОСЛЕДНИЕ ДЕЙСТВИЯ:</b>\n`+_actLog.slice(-6).map(x=>'· '+x).join('\n')
+  if(!_freezeLog.length&&!_errLog.length&&!_netLog.length) ctx+='\n\n✅ Сбоев и зависаний приложение не зафиксировало'
   const msg=`🐛 <b>Репорт бага!</b>\n\n`+
     `👤 <b>${D.user.name||'Аноним'}</b>${D.user.phone?' · '+D.user.phone:''}`+
     (D.user.handle?` · @${D.user.handle}`:'')+`\n`+
-    (where?`📍 Где: <b>${where}</b>\n`:'')+
+    (where?`📍 Категория: <b>${where}</b>\n`:'')+
     `\n💬 ${txt}\n${ctx}\n\n#баг`
   const shot=_bugShot
-  // Отправляем фоном — интерфейс не ждёт
   ;(async()=>{
     try{
       if(shot){
@@ -3412,6 +3437,7 @@ function sendBug(){
   closeM('bug-m')
   toast(shot?'Спасибо! Репорт со скриншотом отправлен 🙏':_('bugThanks'),'🙏')
 }
+
 
 // ═══ PWA INSTALL ═══
 let _deferredPWA=null
@@ -4199,18 +4225,96 @@ async function adminMaintToggle(){
   applyMaintUI(msg)
 }
 
-// ── ЖУРНАЛ JS-ОШИБОК (для баг-репортов) ──
-const _errLog=[]
+// ══════════════════════════════════════════════
+// 🩺 АВТОДИАГНОСТИКА — приложение само следит за собой
+// Журнал ошибок · зависания · действия · сбои сети
+// ══════════════════════════════════════════════
+const _errLog=[],_actLog=[],_freezeLog=[],_netLog=[]
+const _tStart=Date.now()
+const _ts=()=>((Date.now()-_tStart)/1000).toFixed(1)+'с'
+
+// 1) JS-ошибки
 window.addEventListener('error',e=>{
-  _errLog.push((e.message||'?')+' @'+String(e.filename||'').split('/').pop()+':'+(e.lineno||0))
-  if(_errLog.length>5)_errLog.shift()
+  _errLog.push(`[${_ts()}|${D.cur||'?'}] `+(e.message||'?')+' @'+String(e.filename||'').split('/').pop()+':'+(e.lineno||0))
+  if(_errLog.length>6)_errLog.shift()
 })
 window.addEventListener('unhandledrejection',e=>{
-  _errLog.push('Promise: '+String(e.reason).slice(0,120))
-  if(_errLog.length>5)_errLog.shift()
+  _errLog.push(`[${_ts()}|${D.cur||'?'}] Promise: `+String(e.reason).slice(0,120))
+  if(_errLog.length>6)_errLog.shift()
 })
 
-// ── АДМИН: БРОНИ СЕГОДНЯ (управление залом) ──
+// 2) Действия пользователя (хлебные крошки) — что нажимал перед проблемой
+function logAct(what){
+  _actLog.push(`[${_ts()}] ${what}`)
+  if(_actLog.length>10)_actLog.shift()
+}
+document.addEventListener('click',e=>{
+  try{
+    const el=e.target.closest('[onclick],button,.NI,.ZC,.PCB,.PK,.BTN')
+    if(!el)return
+    let name=(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,28)
+    if(!name)name=el.className?String(el.className).split(' ')[0]:el.tagName
+    logAct(`тап: ${name} (${D.cur||'?'})`)
+  }catch(_){}
+},{passive:true,capture:true})
+
+// 3) 🔴 ДЕТЕКТОР ЗАВИСАНИЙ — ловим фризы интерфейса
+;(function watchFreeze(){
+  let last=performance.now()
+  const tick=()=>{
+    const now=performance.now(),gap=now-last
+    // Кадр не рисовался дольше 700мс = интерфейс подвис
+    if(gap>700&&!document.hidden){
+      _freezeLog.push(`[${_ts()}] подвис ${(gap/1000).toFixed(1)}с на экране «${D.cur||'?'}»`)
+      if(_freezeLog.length>5)_freezeLog.shift()
+    }
+    last=now
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+})()
+
+// 4) Сбои и тормоза сети — оборачиваем fetch
+;(function watchNet(){
+  const orig=window.fetch
+  window.fetch=async function(...args){
+    const t0=performance.now()
+    let url=''
+    try{url=String(args[0]).split('?')[0].split('/').pop()||'api'}catch(_){}
+    try{
+      const r=await orig.apply(this,args)
+      const ms=Math.round(performance.now()-t0)
+      if(ms>4000){_netLog.push(`[${_ts()}] медленно ${ms}мс → ${url}`);if(_netLog.length>5)_netLog.shift()}
+      if(!r.ok){_netLog.push(`[${_ts()}] HTTP ${r.status} → ${url}`);if(_netLog.length>5)_netLog.shift()}
+      return r
+    }catch(err){
+      _netLog.push(`[${_ts()}] сбой связи → ${url}`)
+      if(_netLog.length>5)_netLog.shift()
+      throw err
+    }
+  }
+})()
+
+// 5) Сбор полного отчёта об устройстве и состоянии
+function buildDiagReport(){
+  let plat='web',pver='',tgTheme=''
+  try{const t=window.Telegram?.WebApp;if(t){plat=t.platform||'tg';pver=t.version||'';tgTheme=t.colorScheme||''}}catch(_){}
+  const nav=navigator||{}
+  const conn=nav.connection||nav.mozConnection||nav.webkitConnection||{}
+  const mem=nav.deviceMemory?nav.deviceMemory+'ГБ':'?'
+  const cores=nav.hardwareConcurrency||'?'
+  const net=conn.effectiveType?`${conn.effectiveType}${conn.downlink?' ~'+conn.downlink+'Мбит':''}`:(nav.onLine?'онлайн':'офлайн')
+  let jsMem=''
+  try{if(performance.memory)jsMem=` · память JS ${Math.round(performance.memory.usedJSHeapSize/1048576)}МБ`}catch(_){}
+  const ua=String(nav.userAgent||'').slice(0,90)
+  return {
+    plat,pver,tgTheme,mem,cores,net,jsMem,ua,
+    screen:`${window.innerWidth}×${window.innerHeight} @${window.devicePixelRatio||1}x`,
+    uptime:_ts()
+  }
+}
+
+// ── АДМИН: БРОНИ СЕГОДНЯ// ── АДМИН: БРОНИ СЕГОДНЯ (управление залом) ──
 async function renderAdminToday(){
   const box=document.getElementById('adm-today');if(!box||!isAdmin())return
   let all=[];try{all=await loadBookings(null,null,false)}catch(e){}
@@ -4467,49 +4571,75 @@ async function renderAdminDash(){
 
 // ═══ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ (coach-marks) ═══
 const HINTS=[
-  {ico:'🎮',title:'Добро пожаловать!',text:'Это приложение <b>ToxicSkill</b> — бронируй компьютеры за пару секунд, копи баллы и играй бесплатно. Покажем главное за 30 секунд.'},
-  {ico:'⚡',title:'Выбери зону',text:'На главной три зоны: <b>Standard</b>, <b>VIP</b> и <b>Bootcamp</b>. Жми на любую — выберешь пакет, компьютер и время. Занятые ПК видно сразу.'},
-  {ico:'👥',title:'Пришёл с друзьями?',text:'Кнопка <b>«Бронь для команды»</b> на главной — забронируешь <b>несколько ПК разом</b>. Отметишь свободные машины на схеме зала и всё.'},
-  {ico:'⭐',title:'Копи баллы',text:'За каждую бронь начисляем <b>звёзды</b>. Меняй их на <b>бесплатные часы игры</b> — от 40 ⭐ за час. В день рождения дарим <b>+50 ⭐</b>.'},
-  {ico:'📅',title:'Всё под рукой',text:'Внизу: <b>Брони</b> — активные сеансы с отменой, <b>Профиль</b> — баллы, статистика и достижения. Бот напомнит за 30 минут до игры.'}
+  {sel:null,ico:'🎮',title:'Добро пожаловать!',text:'Покажем главное за 20 секунд — где бронировать, как копить баллы и что где лежит.'},
+  {sel:'.zones',ico:'⚡',title:'Выбери зону',text:'Standard, VIP и Bootcamp. Жми на зону — дальше пакет, свободный ПК и время. Занятые машины видно сразу.',pos:'bottom'},
+  {sel:'#home [onclick^="openGroupBooking"]',ico:'👥',title:'Пришёл с друзьями?',text:'Забронируй <b>несколько ПК разом</b> — отметишь свободные машины на схеме зала.',pos:'bottom'},
+  {sel:'.NI:nth-child(3)',ico:'⭐',title:'Профиль и баллы',text:'Тут звёзды, статистика и достижения. Меняй ⭐ на <b>бесплатные часы</b> — от 40 за час. В день рождения дарим +50.',pos:'top'},
+  {sel:'.NI:nth-child(2)',ico:'📅',title:'Твои брони',text:'Активные сеансы — здесь, можно отменить. Бот напомнит за 30 минут до игры.',pos:'top'}
 ]
-let _hintIdx=0,_hintManual=false
+let _hintIdx=0,_hintRetry=0,_hintManual=false
 function startHints(manual){
   _hintManual=!!manual
   if(!manual&&D.user._hintsSeen)return
   if(D.cur!=='home')go('home')
-  _hintIdx=0
+  _hintIdx=0;_hintRetry=0
   const ov=document.getElementById('hints-overlay')
   if(!ov)return
-  setTimeout(()=>{ov.style.display='flex';showHint()},manual?200:0)
+  setTimeout(()=>{ov.style.display='block';showHint()},manual?220:0)
 }
 function showHint(){
   const h=HINTS[_hintIdx];if(!h){endHints(true);return}
-  const ico=document.getElementById('tour-ico')
-  const ttl=document.getElementById('tour-title')
-  const txt=document.getElementById('tour-text')
+  const sp=document.getElementById('hint-spotlight')
+  const bub=document.getElementById('hint-bubble')
+  const ico=document.getElementById('hint-ico')
+  const ttl=document.getElementById('hint-title')
+  const txt=document.getElementById('hint-text')
   const dots=document.getElementById('hint-dots')
   const nx=document.getElementById('hint-next')
-  const card=document.getElementById('tour-card')
-  if(!ico||!ttl||!txt)return
-  // мягкая смена слайда
-  ;[ico,ttl,txt].forEach(el=>{el.style.transition='none';el.style.opacity='0';el.style.transform='translateY(8px)'})
-  requestAnimationFrame(()=>{
-    ico.textContent=h.ico;ttl.textContent=h.title;txt.innerHTML=h.text
-    ;[ico,ttl,txt].forEach((el,k)=>{
-      el.style.transition='opacity .3s var(--e) '+(k*60)+'ms, transform .3s var(--e) '+(k*60)+'ms'
-      el.style.opacity='1';el.style.transform='translateY(0)'
-    })
-  })
-  if(dots)dots.innerHTML=HINTS.map((_,k)=>`<div style="width:${k===_hintIdx?'20px':'6px'};height:6px;border-radius:3px;background:${k===_hintIdx?'var(--lime)':'var(--s4)'};${k===_hintIdx?'box-shadow:0 0 8px rgba(196,255,62,.55)':''};transition:all .3s var(--e)"></div>`).join('')
+  if(!sp||!bub){endHints(false);return}
+  const app=document.getElementById('app').getBoundingClientRect()
+  ico.textContent=h.ico;ttl.textContent=h.title;txt.innerHTML=h.text
+  if(dots)dots.innerHTML=HINTS.map((_,k)=>`<div style="width:${k===_hintIdx?'18px':'5px'};height:5px;border-radius:3px;background:${k===_hintIdx?'var(--lime)':'var(--s4)'};${k===_hintIdx?'box-shadow:0 0 7px rgba(196,255,62,.55)':''};transition:all .3s var(--e)"></div>`).join('')
   if(nx)nx.textContent=_hintIdx===HINTS.length-1?'Погнали! 🎮':'Далее'
-  if(card){card.style.animation='none';void card.offsetWidth;card.style.animation='tourPop .32s var(--e)'}
+  const bubW=Math.min(292,app.width-32)
+  bub.style.width=bubW+'px'
+  // Приветственный шаг — по центру, без прожектора
+  if(!h.sel){
+    sp.style.opacity='0';sp.style.width='0';sp.style.height='0'
+    bub.style.left=((app.width-bubW)/2)+'px'
+    bub.style.top=(app.height/2-90)+'px';bub.style.bottom='auto'
+    return
+  }
+  const target=document.querySelector(h.sel)
+  const r=target?target.getBoundingClientRect():null
+  // Элемент ещё не отрисован — ждём, НЕ помечая тур пройденным
+  if(!target||!r||r.width===0){
+    if(_hintRetry++<12){setTimeout(showHint,140);return}
+    _hintIdx++;_hintRetry=0
+    if(_hintIdx>=HINTS.length){endHints(true);return}
+    setTimeout(showHint,40);return
+  }
+  _hintRetry=0
+  sp.style.opacity='1'
+  const pad=8
+  sp.style.left=(r.left-app.left-pad)+'px'
+  sp.style.top=(r.top-app.top-pad)+'px'
+  sp.style.width=(r.width+pad*2)+'px'
+  sp.style.height=(r.height+pad*2)+'px'
+  const bx=Math.max(16,Math.min(app.width-bubW-16,r.left-app.left+r.width/2-bubW/2))
+  bub.style.left=bx+'px'
+  const midY=(r.top-app.top)+r.height/2
+  if(h.pos==='bottom'&&midY<app.height*0.55){
+    bub.style.top=(r.bottom-app.top+16)+'px';bub.style.bottom='auto'
+  }else{
+    bub.style.bottom=(app.height-(r.top-app.top)+16)+'px';bub.style.top='auto'
+  }
 }
-function nextHint(){_hintIdx++;if(_hintIdx>=HINTS.length){endHints(true)}else showHint()}
+function nextHint(){_hintIdx++;_hintRetry=0;if(_hintIdx>=HINTS.length){endHints(true)}else showHint()}
 function endHints(completed){
   const ov=document.getElementById('hints-overlay');if(ov)ov.style.display='none'
   if(completed!==false){D.user._hintsSeen=true;sv()}
-  if(completed===true&&!_hintManual)setTimeout(()=>toast('Экскурс пройден — приятной игры! 🎮','✅'),300)
+  if(completed===true&&!_hintManual)setTimeout(()=>toast('Готово — приятной игры! 🎮','✅'),300)
 }
 function showGuide(){startHints(true)}
 
