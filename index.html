@@ -85,7 +85,7 @@ a{text-decoration:none;color:inherit}
 }
 
 /* ─── SCREENS ─── */
-.sc{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .22s var(--e);contain:layout style;z-index:1}
+.sc{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .22s var(--e);contain:layout style paint;z-index:1}
 .sc.on{opacity:1;pointer-events:auto;visibility:visible}
 .sB{flex:1 1 auto;min-height:0;overflow-y:scroll;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom,0px) + 34px)}
 
@@ -95,21 +95,18 @@ a{text-decoration:none;color:inherit}
 @keyframes tbGlow{0%,100%{opacity:.3}50%{opacity:.8}}
 @keyframes maintSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @keyframes maintBar{0%{left:-45%}100%{left:105%}}
-/* 🐥 Экран техработ — утёнок-инженер (двигаются только голова и рука, тело мягко дышит) */
-.rduck{animation:rdBob 3.2s ease-in-out infinite;transform-origin:120px 184px}
-@keyframes rdBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-.rd-head{animation:rdHead 3.2s ease-in-out infinite;transform-origin:150px 100px}
-@keyframes rdHead{0%,100%{transform:rotate(0)}45%{transform:rotate(3deg)}}
-.rd-arm{animation:rdArm 1.4s ease-in-out infinite;transform-origin:118px 132px}
-@keyframes rdArm{0%,100%{transform:rotate(3deg)}50%{transform:rotate(-8deg)}}
-.rd-bolt{animation:rdBolt 1.4s ease-in-out infinite;transform-origin:192px 138px}
-@keyframes rdBolt{0%,100%{transform:rotate(8deg)}50%{transform:rotate(-18deg)}}
+/* 🐥 Экран техработ — утёнок-инженер (анимация внутри SVG = не ломается в WebView) */
+.duckwrap{animation:duckFloat 3.4s ease-in-out infinite}
+@keyframes duckFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes tourPop{0%{transform:scale(.94);opacity:.5}100%{transform:scale(1);opacity:1}}
 .spark{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);opacity:0;animation:sparkFly 1.5s ease-out infinite;pointer-events:none}
 @keyframes sparkFly{0%{opacity:0;transform:translate(0,0) scale(.3)}22%{opacity:1;transform:translate(4px,3px) scale(1)}100%{opacity:0;transform:translate(20px,15px) scale(.2)}}
 .mp{position:absolute;width:5px;height:5px;border-radius:50%;opacity:.5;animation:mpFloat 5s ease-in-out infinite;box-shadow:0 0 8px currentColor;pointer-events:none}
 @keyframes mpFloat{0%,100%{transform:translateY(0);opacity:.25}50%{transform:translateY(-22px);opacity:.75}}
 .bugchip{padding:9px 13px;border-radius:11px;background:var(--s2);border:1.5px solid var(--b1);font-size:12px;font-weight:700;color:var(--t2);cursor:pointer;transition:all .15s}
 .bugchip:active{transform:scale(.94)}
+#bug-shot-box:active{transform:scale(.985)}
+#bug-shot-box{transition:border-color .15s,transform .12s}
 .bugchip.on{background:linear-gradient(160deg,rgba(196,255,62,.16),rgba(196,255,62,.05));border-color:var(--lime);color:var(--lime);box-shadow:0 0 14px rgba(196,255,62,.18)}
 .keypulse{animation:glow-pulse 1.3s ease-in-out 4;border-color:var(--gold)!important}
 .LOGO{font-family:var(--F);font-size:22px;font-weight:800;letter-spacing:-.5px}
@@ -132,7 +129,7 @@ body.onboarding .BN{display:none}
 
 /* ─── SECTION LABEL ─── */
 /* ─── GPU-ускорение анимированных элементов (перф) ─── */
-.LD,.ph-av,.ph-on,.TB::after,.BN::before{will-change:transform,opacity}
+.LD,.ph-av,.ph-on,.TB::after,.BN::before,.duckwrap{will-change:transform,opacity}
 .mp{will-change:transform}
 
 .SL{font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:2.5px;text-transform:uppercase;margin:18px 0 10px;display:flex;align-items:center;gap:8px}
@@ -411,66 +408,92 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
 
   <div style="font-family:var(--F);font-size:46px;font-weight:800;letter-spacing:-2px;line-height:.9;position:relative">TOXIC<em style="color:var(--lime);font-style:normal;display:block;text-shadow:0 0 50px rgba(196,255,62,.45)">SKILL</em></div>
 
-  <div style="position:relative;width:236px;height:200px;margin:20px 0 16px;display:flex;align-items:center;justify-content:center">
-    <div style="position:absolute;bottom:2px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(196,255,62,.15),transparent 65%);animation:glow-pulse 2.8s ease-in-out infinite;pointer-events:none"></div>
-    <div class="spark" style="left:186px;top:126px;animation-delay:.1s"></div>
-    <div class="spark" style="left:196px;top:134px;animation-delay:.5s"></div>
-    <div class="spark" style="left:188px;top:142px;animation-delay:.9s"></div>
-    <svg viewBox="0 0 240 200" width="236" height="197" style="position:relative;overflow:visible">
-      <g class="rduck">
-<!-- ground shadow -->
-        <ellipse cx="120" cy="186" rx="66" ry="9" fill="#000" opacity="0.3"/>
+  <div class="duckwrap" style="position:relative;width:238px;height:202px;margin:18px 0 14px;display:flex;align-items:center;justify-content:center">
+    <div style="position:absolute;bottom:6px;width:158px;height:158px;border-radius:50%;background:radial-gradient(circle,rgba(196,255,62,.16),transparent 66%);animation:glow-pulse 2.8s ease-in-out infinite;pointer-events:none"></div>
+    <div class="spark" style="left:190px;top:124px;animation-delay:.15s"></div>
+    <div class="spark" style="left:200px;top:132px;animation-delay:.6s"></div>
+    <div class="spark" style="left:192px;top:141px;animation-delay:1.05s"></div>
+    <svg viewBox="0 0 240 200" width="238" height="198" style="position:relative;overflow:visible">
+      <defs>
+        <linearGradient id="dkBody" x1="0.25" y1="0" x2="0.75" y2="1">
+          <stop offset="0" stop-color="#FFE873"/><stop offset="0.55" stop-color="#FFD22E"/><stop offset="1" stop-color="#F0B408"/>
+        </linearGradient>
+        <linearGradient id="dkHead" x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0" stop-color="#FFEE85"/><stop offset="0.6" stop-color="#FFD634"/><stop offset="1" stop-color="#F5BE10"/>
+        </linearGradient>
+        <linearGradient id="dkBeak" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#FFAE33"/><stop offset="1" stop-color="#EF850F"/>
+        </linearGradient>
+        <linearGradient id="dkHat" x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0" stop-color="#6BB4FF"/><stop offset="1" stop-color="#2F7FE0"/>
+        </linearGradient>
+        <linearGradient id="dkSteel" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#F2F6FA"/><stop offset="0.5" stop-color="#C7D1DC"/><stop offset="1" stop-color="#94A0AE"/>
+        </linearGradient>
+        <!-- ✨ переливание: световая полоса скользит по утке -->
+        <linearGradient id="dkGloss" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+          <stop offset="0.5" stop-color="#fff" stop-opacity="0.45"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </linearGradient>
+        <clipPath id="dkClip">
+          <ellipse cx="110" cy="134" rx="74" ry="50"/>
+          <circle cx="162" cy="72" r="42"/>
+          <path d="M46 102 Q24 80 32 62 Q56 74 66 98 Q58 106 46 102 Z"/>
+        </clipPath>
+      </defs>
 
-        <!-- ═══ RUBBER DUCK (flat, seamless) ═══ -->
-        <g fill="#FFD22E">
-  <!-- tail swoosh -->
-  <path d="M46 102 Q24 80 32 62 Q56 74 66 98 Q58 106 46 102 Z"/>
-  <!-- body -->
-  <ellipse cx="110" cy="134" rx="74" ry="50"/>
-  <!-- head -->
-  <circle cx="162" cy="72" r="42"/>
-        </g>
+      <ellipse cx="120" cy="187" rx="66" ry="9" fill="#000" opacity="0.32"/>
 
-        <!-- soft shading -->
-        <ellipse cx="112" cy="158" rx="56" ry="24" fill="#EFB70C" opacity="0.45"/>
-        <ellipse cx="140" cy="50" rx="20" ry="13" fill="#FFFFFF" opacity="0.22"/>
-        <ellipse cx="80" cy="106" rx="22" ry="13" fill="#FFFFFF" opacity="0.14"/>
+      <!-- ТЕЛО -->
+      <path d="M46 102 Q24 80 32 62 Q56 74 66 98 Q58 106 46 102 Z" fill="url(#dkBody)"/>
+      <ellipse cx="110" cy="134" rx="74" ry="50" fill="url(#dkBody)"/>
+      <ellipse cx="86" cy="112" rx="30" ry="17" fill="#FFFFFF" opacity="0.16"/>
 
-        <!-- wing (decorative) -->
-        <path d="M64 118 Q104 108 128 128 Q130 150 104 158 Q72 156 60 136 Q58 124 64 118 Z" fill="#F5C317"/>
-        <path d="M78 128 Q100 128 116 140 M74 138 Q96 140 110 150" stroke="#DFA607" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.45"/>
+      <!-- КРЫЛО -->
+      <path d="M64 118 Q104 108 128 128 Q130 150 104 158 Q72 156 60 136 Q58 124 64 118 Z" fill="#F5C317"/>
+      <path d="M78 128 Q100 128 116 140 M74 138 Q96 140 110 150" stroke="#DFA607" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.45"/>
 
-        <g class="rd-head">
-        <!-- ═══ HEAD DETAILS ═══ -->
-        <!-- beak -->
-        <path d="M200 62 Q232 60 236 72 Q232 82 206 80 Q197 72 200 62 Z" fill="#FF9A1F"/>
+      <!-- ГОЛОВА (кивает) -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="0 150 104;2.6 150 104;0 150 104" keyTimes="0;0.5;1" dur="3.4s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+        <circle cx="162" cy="72" r="42" fill="url(#dkHead)"/>
+        <ellipse cx="146" cy="52" rx="20" ry="13" fill="#FFFFFF" opacity="0.2"/>
+        <path d="M200 62 Q232 60 236 72 Q232 82 206 80 Q197 72 200 62 Z" fill="url(#dkBeak)"/>
         <path d="M202 80 Q220 90 233 84 Q227 96 208 93 Q200 87 202 80 Z" fill="#E67E0E"/>
         <ellipse cx="216" cy="68" rx="2.2" ry="1.5" fill="#C96A0A"/>
-        <!-- blush -->
-        <ellipse cx="156" cy="82" rx="10" ry="6" fill="#FF9A8B" opacity="0.4"/>
-        <!-- eye -->
-        <circle cx="172" cy="60" r="8" fill="#262230"/>
-        <circle cx="175" cy="57" r="2.6" fill="#FFF"/>
-        <circle cx="170" cy="63" r="1.3" fill="#FFF" opacity="0.7"/>
-
-        <!-- ═══ HARD HAT (blue) ═══ -->
-        <rect x="157" y="8" width="12" height="14" rx="5" fill="#4B9EFF"/>
-        <path d="M132 44 Q134 12 164 10 Q194 12 196 42 Q164 30 132 44 Z" fill="#4B9EFF"/>
+        <ellipse cx="156" cy="84" rx="10" ry="6" fill="#FF9A8B" opacity="0.42"/>
+        <circle cx="172" cy="60" r="8.5" fill="#262230"/>
+        <circle cx="175" cy="56.5" r="2.8" fill="#FFF"/>
+        <circle cx="169.5" cy="63" r="1.4" fill="#FFF" opacity="0.75"/>
+        <!-- каска -->
+        <rect x="157" y="8" width="12" height="14" rx="5" fill="#6BB4FF"/>
+        <path d="M132 44 Q134 12 164 10 Q194 12 196 42 Q164 30 132 44 Z" fill="url(#dkHat)"/>
         <path d="M120 46 Q164 28 208 42 Q210 50 205 52 Q164 36 124 54 Q118 50 120 46 Z" fill="#2F7FE0"/>
-        </g>
+      </g>
 
-        <g class="rd-arm">
-        <!-- ═══ ARM + WRENCH ═══ -->
+      <!-- РУКА С КЛЮЧОМ (крутит) -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="3 118 132;-8 118 132;3 118 132" keyTimes="0;0.5;1" dur="1.5s" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite"/>
         <path d="M118 132 Q138 150 152 146" stroke="#F2BC14" stroke-width="16" fill="none" stroke-linecap="round"/>
-        <rect x="162" y="112" width="10" height="42" rx="5" fill="#CDD6E0" transform="rotate(38 167 133)"/>
-        <path d="M181.3 131.9 A12 12 0 1 1 193.6 125.7 L187.8 122.6 A5.5 5.5 0 1 0 182.2 125.4 Z" fill="#CDD6E0"/>
-        </g>
+        <rect x="162" y="112" width="10" height="42" rx="5" fill="url(#dkSteel)" transform="rotate(38 167 133)"/>
+        <path d="M181.3 131.9 A12 12 0 1 1 193.6 125.7 L187.8 122.6 A5.5 5.5 0 1 0 182.2 125.4 Z" fill="url(#dkSteel)"/>
+      </g>
 
-        <g class="rd-bolt">
-        <!-- bolt -->
+      <!-- БОЛТ (проворачивается) -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="8 192 138;-16 192 138;8 192 138" keyTimes="0;0.5;1" dur="1.5s" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite"/>
         <circle cx="192" cy="138" r="8" fill="#A4B0BD"/>
         <circle cx="192" cy="138" r="3.5" fill="#5D6773"/>
         <path d="M192 128 l2.4 5.5 -4.8 0 Z M202 138 l-5.5 2.4 0 -4.8 Z M192 148 l-2.4 -5.5 4.8 0 Z M182 138 l5.5 -2.4 0 4.8 Z" fill="#6B7681"/>
+      </g>
+
+      <!-- ✨ блик: световая полоса скользит по утке (как у стикеров TG) -->
+      <g clip-path="url(#dkClip)" style="pointer-events:none">
+        <g transform="skewX(-16)">
+          <rect x="-150" y="-40" width="62" height="280" fill="url(#dkGloss)">
+            <animateTransform attributeName="transform" type="translate" values="0 0;440 0;440 0" keyTimes="0;0.42;1" dur="4.2s" repeatCount="indefinite"/>
+          </rect>
         </g>
       </g>
     </svg>
@@ -485,17 +508,22 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
   <div style="position:absolute;bottom:max(env(safe-area-inset-bottom,0px),28px);font-family:var(--m);font-size:10px;color:var(--t3);letter-spacing:2px">@TOXICSKILL_BREST</div>
 </div>
 <!-- ════ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ ════ -->
-<div id="hints-overlay" style="position:absolute;inset:0;z-index:500;display:none;pointer-events:auto" onclick="if(event.target.id==='hints-overlay'||event.target.id==='hint-spotlight')nextHint()">
-  <div id="hint-spotlight" style="position:absolute;border-radius:18px;box-shadow:0 0 0 9999px rgba(4,4,14,.78);transition:all .4s var(--e);pointer-events:none"></div>
-  <div id="hint-bubble" style="position:absolute;max-width:280px;background:linear-gradient(160deg,var(--s2),var(--s1));border:1.5px solid var(--lime30);border-radius:18px;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 24px rgba(196,255,62,.12);transition:all .4s var(--e)">
-    <div id="hint-text" style="font-size:13.5px;color:var(--txt);line-height:1.6;margin-bottom:14px"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div id="hint-dots" style="display:flex;gap:5px"></div>
-      <div style="display:flex;gap:8px">
-        <button onclick="endHints()" style="padding:8px 12px;border-radius:10px;background:transparent;border:none;color:var(--t2);font-size:12px;cursor:pointer">Пропустить</button>
-        <button onclick="nextHint()" id="hint-next" style="padding:8px 16px;border-radius:10px;background:linear-gradient(135deg,var(--lime),var(--cyan));border:none;color:#000;font-size:12px;font-weight:800;cursor:pointer">Далее</button>
+<div id="hints-overlay" style="position:absolute;inset:0;z-index:500;display:none;background:rgba(4,4,14,.9);align-items:center;justify-content:center;padding:24px">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 70% 45% at 50% 8%,rgba(196,255,62,.1),transparent 60%),radial-gradient(ellipse 60% 40% at 50% 100%,rgba(75,158,255,.08),transparent 60%);pointer-events:none"></div>
+  <div id="tour-card" style="position:relative;width:100%;max-width:330px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1.5px solid var(--lime15);border-radius:26px;padding:30px 24px 22px;box-shadow:0 24px 70px rgba(0,0,0,.65),0 0 40px rgba(196,255,62,.07)">
+    <div style="position:absolute;top:0;left:26px;right:26px;height:1.5px;background:linear-gradient(90deg,transparent,var(--lime),transparent);opacity:.65"></div>
+    <div style="text-align:center">
+      <div id="tour-ico-wrap" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:92px;height:92px;margin-bottom:16px">
+        <div id="tour-halo" style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(196,255,62,.2),transparent 68%);animation:glow-pulse 2.6s ease-in-out infinite"></div>
+        <div style="position:absolute;inset:8px;border-radius:50%;border:1.5px solid var(--lime15)"></div>
+        <div id="tour-ico" style="position:relative;font-size:44px;line-height:1"></div>
       </div>
+      <div id="tour-title" style="font-family:var(--F);font-size:22px;font-weight:800;letter-spacing:-.4px;background:linear-gradient(120deg,#fff 28%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:9px"></div>
+      <div id="tour-text" style="font-size:13.5px;color:var(--t2);line-height:1.65;min-height:66px"></div>
     </div>
+    <div id="hint-dots" style="display:flex;gap:6px;justify-content:center;margin:18px 0 16px"></div>
+    <button id="hint-next" onclick="nextHint()" class="BTN" style="background:linear-gradient(135deg,var(--lime),var(--cyan));color:#000;font-weight:800">Далее</button>
+    <button onclick="endHints()" style="width:100%;margin-top:9px;padding:11px;border-radius:13px;background:transparent;border:none;color:var(--t3);font-size:12px;font-weight:600;cursor:pointer">Пропустить экскурс</button>
   </div>
 </div>
 
@@ -1242,9 +1270,21 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
     <div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px" data-i="bugDescF">Опиши проблему</div>
     <textarea class="INP" id="bug-txt" rows="4" placeholder="Что случилось? Чем подробнее — тем быстрее починим" style="resize:none;line-height:1.6;font-size:14px;margin-bottom:10px"></textarea>
 
+    <div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Скриншот <span style="opacity:.6;letter-spacing:0;text-transform:none">— по желанию</span></div>
+    <input type="file" id="bug-file" accept="image/*" style="display:none" onchange="pickBugShot(this)">
+    <div id="bug-shot-box" onclick="document.getElementById('bug-file').click()" style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:13px;background:var(--s2);border:1.5px dashed var(--b2);cursor:pointer;margin-bottom:12px;transition:border-color .15s">
+      <div style="width:38px;height:38px;flex-shrink:0;border-radius:11px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:18px">📸</div>
+      <div style="flex:1;min-width:0">
+        <div id="bug-shot-t" style="font-size:12.5px;font-weight:700;color:var(--txt)">Прикрепить скриншот</div>
+        <div id="bug-shot-s" style="font-size:10.5px;color:var(--t3);margin-top:2px">Так мы починим в разы быстрее</div>
+      </div>
+      <div id="bug-shot-prev" style="display:none;width:42px;height:42px;border-radius:10px;overflow:hidden;flex-shrink:0;border:1px solid var(--lime30)"></div>
+      <div id="bug-shot-x" onclick="event.stopPropagation();clearBugShot()" style="display:none;width:28px;height:28px;flex-shrink:0;border-radius:9px;background:rgba(255,63,96,.12);border:1px solid rgba(255,63,96,.3);color:var(--red);font-size:13px;display:none;align-items:center;justify-content:center;cursor:pointer">✕</div>
+    </div>
+
     <div style="display:flex;gap:9px;align-items:flex-start;padding:11px 13px;border-radius:13px;background:linear-gradient(160deg,rgba(196,255,62,.06),rgba(42,237,181,.03));border:1px solid var(--lime15);margin-bottom:14px">
       <span style="font-size:15px;flex-shrink:0">🤖</span>
-      <span style="font-size:10.5px;color:var(--t2);line-height:1.55">К репорту <b style="color:var(--lime)">автоматически</b> приложим: экран, устройство, версию приложения и тех-детали. Ничего вводить не нужно.</span>
+      <span style="font-size:10.5px;color:var(--t2);line-height:1.55">К репорту <b style="color:var(--lime)">автоматически</b> приложим экран, устройство, версию и тех-детали — вводить ничего не нужно.</span>
     </div>
 
     <button class="BTN" onclick="sendBug()" style="background:var(--grad-main);font-weight:800"><span data-i="bugSend">📤 Отправить</span></button>
@@ -3293,17 +3333,55 @@ async function testBot(){
   btn.innerHTML=orig;btn.disabled=false
 }
 
-let _bugCat=''
+let _bugCat='',_bugShot=null
 function pickBugCat(el,v){
   _bugCat=(_bugCat===v)?'':v
   document.querySelectorAll('.bugchip').forEach(c=>c.classList.remove('on'))
   if(_bugCat)el.classList.add('on')
 }
+// 📸 Скриншот: сжимаем на устройстве, чтобы отправка была мгновенной
+function pickBugShot(inp){
+  const f=inp.files&&inp.files[0];if(!f)return
+  if(!/^image\//.test(f.type)){toast('Нужен файл-картинка','⚠️');return}
+  const rd=new FileReader()
+  rd.onload=e=>{
+    const img=new Image()
+    img.onload=()=>{
+      const MAX=1280
+      let w=img.width,h=img.height
+      if(w>MAX||h>MAX){const k=Math.min(MAX/w,MAX/h);w=Math.round(w*k);h=Math.round(h*k)}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h
+      cv.getContext('2d').drawImage(img,0,0,w,h)
+      _bugShot=cv.toDataURL('image/jpeg',0.72)
+      const box=document.getElementById('bug-shot-box')
+      const prev=document.getElementById('bug-shot-prev')
+      if(prev){prev.style.display='block';prev.innerHTML='<img src="'+_bugShot+'" style="width:100%;height:100%;object-fit:cover">'}
+      const x=document.getElementById('bug-shot-x');if(x)x.style.display='flex'
+      const t=document.getElementById('bug-shot-t');if(t)t.textContent='Скриншот прикреплён'
+      const s=document.getElementById('bug-shot-s')
+      if(s)s.textContent=Math.round(_bugShot.length/1400)+' КБ · нажми ✕ чтобы убрать'
+      if(box){box.style.borderColor='var(--lime30)';box.style.borderStyle='solid'}
+    }
+    img.onerror=()=>toast('Не удалось прочитать картинку','⚠️')
+    img.src=e.target.result
+  }
+  rd.onerror=()=>toast('Не удалось открыть файл','⚠️')
+  rd.readAsDataURL(f)
+}
+function clearBugShot(){
+  _bugShot=null
+  const inp=document.getElementById('bug-file');if(inp)inp.value=''
+  const prev=document.getElementById('bug-shot-prev');if(prev){prev.style.display='none';prev.innerHTML=''}
+  const x=document.getElementById('bug-shot-x');if(x)x.style.display='none'
+  const t=document.getElementById('bug-shot-t');if(t)t.textContent='Прикрепить скриншот'
+  const s=document.getElementById('bug-shot-s');if(s)s.textContent='Так мы починим в разы быстрее'
+  const box=document.getElementById('bug-shot-box')
+  if(box){box.style.borderColor='var(--b2)';box.style.borderStyle='dashed'}
+}
 function sendBug(){
   const txt=document.getElementById('bug-txt').value.trim()
   const where=_bugCat
   if(!txt){toast(_('bugEmpty'),'⚠️');return}
-  // Авто-контекст: устройство, экран, версия, последние JS-ошибки
   let plat='web',pver=''
   try{const twa=window.Telegram?.WebApp;if(twa){plat=twa.platform||'tg';pver=twa.version||''}}catch(e){}
   const ctx=
@@ -3317,12 +3395,22 @@ function sendBug(){
     (D.user.handle?` · @${D.user.handle}`:'')+`\n`+
     (where?`📍 Где: <b>${where}</b>\n`:'')+
     `\n💬 ${txt}\n${ctx}\n\n#баг`
-  // Мгновенно: одна отправка фоном, без блокировки
-  tgNotify(msg).catch(()=>{})
+  const shot=_bugShot
+  // Отправляем фоном — интерфейс не ждёт
+  ;(async()=>{
+    try{
+      if(shot){
+        await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'bugReport',caption:msg,photo:shot}),mode:'no-cors'})
+      }else{
+        await tgNotify(msg)
+      }
+    }catch(e){}
+  })()
   document.getElementById('bug-txt').value=''
   _bugCat='';document.querySelectorAll('.bugchip').forEach(c=>c.classList.remove('on'))
+  clearBugShot()
   closeM('bug-m')
-  toast(_('bugThanks'),'🙏')
+  toast(shot?'Спасибо! Репорт со скриншотом отправлен 🙏':_('bugThanks'),'🙏')
 }
 
 // ═══ PWA INSTALL ═══
@@ -4379,70 +4467,50 @@ async function renderAdminDash(){
 
 // ═══ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ (coach-marks) ═══
 const HINTS=[
-  {sel:'.zones',text:'🎮 Тут выбираешь <b>зону и компьютер</b>. Жми на зону — выбор ПК, времени и готово!',pos:'bottom'},
-  {sel:'#home [onclick^="openGroupBooking"]',text:'👥 Пришёл с друзьями? <b>Забронируй несколько ПК сразу</b> через групповое бронирование.',pos:'bottom'},
-  {sel:'.NI:nth-child(3)',text:'👤 В <b>профиле</b> — твои баллы, статистика и достижения. Копи ⭐ и меняй на бесплатные часы!',pos:'top'},
-  {sel:'.NI:nth-child(2)',text:'📅 Все твои брони — <b>здесь</b>. Можно посмотреть и отменить.',pos:'top'}
+  {ico:'🎮',title:'Добро пожаловать!',text:'Это приложение <b>ToxicSkill</b> — бронируй компьютеры за пару секунд, копи баллы и играй бесплатно. Покажем главное за 30 секунд.'},
+  {ico:'⚡',title:'Выбери зону',text:'На главной три зоны: <b>Standard</b>, <b>VIP</b> и <b>Bootcamp</b>. Жми на любую — выберешь пакет, компьютер и время. Занятые ПК видно сразу.'},
+  {ico:'👥',title:'Пришёл с друзьями?',text:'Кнопка <b>«Бронь для команды»</b> на главной — забронируешь <b>несколько ПК разом</b>. Отметишь свободные машины на схеме зала и всё.'},
+  {ico:'⭐',title:'Копи баллы',text:'За каждую бронь начисляем <b>звёзды</b>. Меняй их на <b>бесплатные часы игры</b> — от 40 ⭐ за час. В день рождения дарим <b>+50 ⭐</b>.'},
+  {ico:'📅',title:'Всё под рукой',text:'Внизу: <b>Брони</b> — активные сеансы с отменой, <b>Профиль</b> — баллы, статистика и достижения. Бот напомнит за 30 минут до игры.'}
 ]
-let _hintIdx=0,_hintRetry=0,_hintManual=false
+let _hintIdx=0,_hintManual=false
 function startHints(manual){
   _hintManual=!!manual
   if(!manual&&D.user._hintsSeen)return
-  // Подсказки работают только на главном экране
-  if(D.cur!=='home'){go('home')}
-  _hintIdx=0;_hintRetry=0
+  if(D.cur!=='home')go('home')
+  _hintIdx=0
   const ov=document.getElementById('hints-overlay')
   if(!ov)return
-  setTimeout(()=>{ov.style.display='block';showHint()},manual?250:0)
+  setTimeout(()=>{ov.style.display='flex';showHint()},manual?200:0)
 }
 function showHint(){
   const h=HINTS[_hintIdx];if(!h){endHints(true);return}
-  const target=document.querySelector(h.sel)
-  const sp=document.getElementById('hint-spotlight')
-  const bub=document.getElementById('hint-bubble')
-  const txt=document.getElementById('hint-text')
+  const ico=document.getElementById('tour-ico')
+  const ttl=document.getElementById('tour-title')
+  const txt=document.getElementById('tour-text')
   const dots=document.getElementById('hint-dots')
-  const nextBtn=document.getElementById('hint-next')
-  if(!sp||!bub){endHints(false);return}
-  // Если элемент не найден или ещё не отрисован — ретраим (НЕ помечаем как просмотрено)
-  const r=target?target.getBoundingClientRect():null
-  if(!target||!r||r.width===0){
-    if(_hintRetry++<10){setTimeout(showHint,150);return}
-    // Пропускаем этот шаг
-    _hintIdx++;_hintRetry=0
-    if(_hintIdx>=HINTS.length){endHints(true);return}
-    setTimeout(showHint,50);return
-  }
-  _hintRetry=0
-  txt.innerHTML=h.text
-  dots.innerHTML=HINTS.map((_,i)=>`<div style="width:6px;height:6px;border-radius:50%;background:${i===_hintIdx?'var(--lime)':'var(--s4)'};${i===_hintIdx?'box-shadow:0 0 6px rgba(196,255,62,.6)':''}"></div>`).join('')
-  if(nextBtn)nextBtn.textContent=_hintIdx===HINTS.length-1?'Понятно! 🎮':'Далее'
-  const app=document.getElementById('app').getBoundingClientRect()
-  const pad=8
-  sp.style.left=(r.left-app.left-pad)+'px'
-  sp.style.top=(r.top-app.top-pad)+'px'
-  sp.style.width=(r.width+pad*2)+'px'
-  sp.style.height=(r.height+pad*2)+'px'
-  const bubW=Math.min(280,app.width-32)
-  bub.style.width=bubW+'px'
-  let bx=Math.max(16,Math.min(app.width-bubW-16,r.left-app.left+r.width/2-bubW/2))
-  bub.style.left=bx+'px'
-  // Авто-выбор позиции: если элемент в нижней половине — пузырёк сверху
-  const elemMidY=(r.top-app.top)+r.height/2
-  const showBelow=h.pos==='bottom'&&elemMidY<app.height*0.55
-  if(showBelow){
-    bub.style.top=(r.bottom-app.top+14)+'px';bub.style.bottom='auto'
-  }else{
-    bub.style.bottom=(app.height-(r.top-app.top)+14)+'px';bub.style.top='auto'
-  }
+  const nx=document.getElementById('hint-next')
+  const card=document.getElementById('tour-card')
+  if(!ico||!ttl||!txt)return
+  // мягкая смена слайда
+  ;[ico,ttl,txt].forEach(el=>{el.style.transition='none';el.style.opacity='0';el.style.transform='translateY(8px)'})
+  requestAnimationFrame(()=>{
+    ico.textContent=h.ico;ttl.textContent=h.title;txt.innerHTML=h.text
+    ;[ico,ttl,txt].forEach((el,k)=>{
+      el.style.transition='opacity .3s var(--e) '+(k*60)+'ms, transform .3s var(--e) '+(k*60)+'ms'
+      el.style.opacity='1';el.style.transform='translateY(0)'
+    })
+  })
+  if(dots)dots.innerHTML=HINTS.map((_,k)=>`<div style="width:${k===_hintIdx?'20px':'6px'};height:6px;border-radius:3px;background:${k===_hintIdx?'var(--lime)':'var(--s4)'};${k===_hintIdx?'box-shadow:0 0 8px rgba(196,255,62,.55)':''};transition:all .3s var(--e)"></div>`).join('')
+  if(nx)nx.textContent=_hintIdx===HINTS.length-1?'Погнали! 🎮':'Далее'
+  if(card){card.style.animation='none';void card.offsetWidth;card.style.animation='tourPop .32s var(--e)'}
 }
-function nextHint(){_hintIdx++;_hintRetry=0;if(_hintIdx>=HINTS.length){endHints(true)}else showHint()}
+function nextHint(){_hintIdx++;if(_hintIdx>=HINTS.length){endHints(true)}else showHint()}
 function endHints(completed){
   const ov=document.getElementById('hints-overlay');if(ov)ov.style.display='none'
-  // Помечаем просмотренным только если реально показали (не из-за ошибки)
   if(completed!==false){D.user._hintsSeen=true;sv()}
+  if(completed===true&&!_hintManual)setTimeout(()=>toast('Экскурс пройден — приятной игры! 🎮','✅'),300)
 }
-// Ручной запуск гида из настроек
 function showGuide(){startHints(true)}
 
 // ═══ ЧТО НОВОГО ═══
