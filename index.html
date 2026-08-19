@@ -13,7 +13,9 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06060f"/>
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVG94aWNTa2lsbCIsInNob3J0X25hbWUiOiJUb3hpY1NraWxsIiwiZGVzY3JpcHRpb24iOiLQkdGA0L7QvdC40YDQvtCy0LDQvdC40LUg0J/QmiDQsiDQutC70YPQsdC1IiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJvcmllbnRhdGlvbiI6InBvcnRyYWl0Iiwic3RhcnRfdXJsIjoiLi8iLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzA2MDYwZiIsInRoZW1lX2NvbG9yIjoiIzA2MDYwZiJ9"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src * data:; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://api.telegram.org"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src https://script.google.com https://script.googleusercontent.com https://api.telegram.org; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<meta name="referrer" content="no-referrer"/>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -87,7 +89,7 @@ a{text-decoration:none;color:inherit}
 /* ─── SCREENS ─── */
 .sc{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .22s var(--e);contain:layout style paint;z-index:1}
 .sc.on{opacity:1;pointer-events:auto;visibility:visible}
-.sB{flex:1 1 auto;min-height:0;overflow-y:scroll;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom,0px) + 34px)}
+.sB{flex:1 1 auto;min-height:0;overflow-y:scroll;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom,0px) + 34px)}
 
 /* ─── TOPBAR ─── */
 .TB{padding:max(env(safe-area-inset-top,0px),18px) 20px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:relative;background:linear-gradient(180deg,var(--s1) 0%,rgba(10,10,22,.4) 70%,transparent 100%)}
@@ -141,7 +143,10 @@ body.onboarding .BN{display:none}
 
 /* ─── CARD ─── */
 .CRD{background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1);border-radius:var(--R);overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.03)}
-.RW{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:1px solid var(--b1)}
+.RW{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--b1);transition:background .15s}
+.RW:last-child{border-bottom:none}
+.RW-btn{cursor:pointer}
+.RW-btn:active{background:rgba(255,255,255,.035)}
 .RW:last-child{border:none}
 .RW-btn{cursor:pointer;transition:background .15s}.RW-btn:active{background:var(--s2)}
 .K{font-size:13px;color:var(--t2)}.V{font-size:13px;font-weight:600}
@@ -151,7 +156,8 @@ body.onboarding .BN{display:none}
 .Bl{color:var(--lime);background:var(--lime08)}.Bg{color:var(--gold);background:var(--gold08)}.Bb{color:var(--blue);background:var(--blue08)}.Br{color:var(--red);background:var(--red08)}.Bx{color:var(--t2);background:var(--s3)}
 
 /* ─── TOGGLE ─── */
-.TOG{width:44px;height:26px;border-radius:13px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;background:var(--s4)}
+.TOG{width:46px;height:27px;border-radius:14px;position:relative;cursor:pointer;transition:background .22s,box-shadow .22s;flex-shrink:0;background:var(--s4);border:1px solid var(--b2)}
+.TOG:active{transform:scale(.94)}
 .TOG.on{background:var(--lime);box-shadow:0 0 12px rgba(196,255,62,.28)}
 .TOG::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s var(--e);box-shadow:0 1px 5px rgba(0,0,0,.5)}
 .TOG.on::after{left:21px}
@@ -364,7 +370,7 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
 /* ══ MODAL ══ */
 .MBG{position:absolute;inset:0;background:rgba(0,0,0,.82);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .25s}
 .MBG.open{opacity:1;pointer-events:all}
-.MOD{contain:layout style;background:linear-gradient(180deg,var(--s2) 0%,var(--s1) 30%);border-radius:28px 28px 0 0;border-top:1.5px solid var(--lime15);padding:8px 24px max(env(safe-area-inset-bottom,28px),28px);width:100%;max-height:90vh;overflow-y:auto;transform:translateY(100%);transition:transform .34s var(--e);box-shadow:0 -20px 60px rgba(0,0,0,.6),0 -1px 0 rgba(196,255,62,.1)}
+.MOD{background:linear-gradient(180deg,var(--s2) 0%,var(--s1) 30%);border-radius:28px 28px 0 0;border-top:1.5px solid var(--lime15);padding:8px 24px max(env(safe-area-inset-bottom,28px),28px);width:100%;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;transform:translateY(100%);transition:transform .34s var(--e);box-shadow:0 -20px 60px rgba(0,0,0,.6),0 -1px 0 rgba(196,255,62,.1)}
 .MBG.open .MOD{contain:layout style;transform:translateY(0)}
 .MH{width:42px;height:4px;background:linear-gradient(90deg,var(--lime30),var(--s4));border-radius:2px;margin:10px auto 22px;opacity:.7}
 .MT{font-family:var(--F);font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:12px}
@@ -519,28 +525,31 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
 </div>
 <!-- ════ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ ════ -->
 <div id="hints-overlay" style="position:absolute;inset:0;z-index:500;display:none;pointer-events:auto">
-  <div id="hint-spotlight" style="position:absolute;border-radius:20px;box-shadow:0 0 0 9999px rgba(4,4,14,.86);border:2px solid var(--lime);transition:all .45s cubic-bezier(.4,0,.2,1);pointer-events:none;animation:spotGlow 2.2s ease-in-out infinite"></div>
-  <div id="hint-card" style="position:absolute;left:14px;right:14px;bottom:calc(var(--nav) + env(safe-area-inset-bottom,0px) + 14px);background:linear-gradient(168deg,var(--s2),var(--s1));border:1.5px solid var(--lime15);border-radius:24px;padding:20px 20px 16px;box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 34px rgba(196,255,62,.09)">
-    <div style="position:absolute;top:0;left:24px;right:24px;height:1.5px;background:linear-gradient(90deg,transparent,var(--lime),transparent);opacity:.7"></div>
-    <div style="display:flex;align-items:flex-start;gap:13px">
-      <div style="position:relative;width:46px;height:46px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
-        <div style="position:absolute;inset:0;border-radius:14px;background:linear-gradient(140deg,rgba(196,255,62,.18),rgba(42,237,181,.06));border:1px solid var(--lime15)"></div>
-        <div id="hint-ico" style="position:relative;font-size:23px;line-height:1"></div>
+  <div id="hint-dim" style="position:absolute;inset:0;background:rgba(4,4,14,.88);transition:opacity .3s"></div>
+  <div id="hint-spotlight" style="position:absolute;border-radius:22px;box-shadow:0 0 0 9999px rgba(4,4,14,.88),0 0 30px rgba(196,255,62,.35);border:2.5px solid var(--lime);transition:all .5s cubic-bezier(.34,1.2,.4,1);pointer-events:none;opacity:0"></div>
+  <div id="hint-card" style="position:absolute;left:16px;right:16px;background:linear-gradient(168deg,#161a1e,#0d0f14);border:1.5px solid var(--lime30);border-radius:26px;padding:0;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.75),0 0 40px rgba(196,255,62,.1);transition:top .45s var(--e),bottom .45s var(--e)">
+    <div style="height:3px;background:linear-gradient(90deg,transparent,var(--lime),var(--cyan),transparent)"></div>
+    <div style="padding:20px 20px 16px">
+      <div style="display:flex;align-items:center;gap:13px;margin-bottom:13px">
+        <div style="position:relative;width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+          <div style="position:absolute;inset:0;border-radius:16px;background:linear-gradient(140deg,rgba(196,255,62,.22),rgba(42,237,181,.07));border:1px solid var(--lime30)"></div>
+          <div id="hint-ico" style="position:relative;font-size:26px;line-height:1"></div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div id="hint-step" style="font-family:var(--m);font-size:9px;color:var(--lime);letter-spacing:2px;margin-bottom:3px"></div>
+          <div id="hint-title" style="font-family:var(--F);font-size:18px;font-weight:800;color:#fff;letter-spacing:-.4px;line-height:1.15"></div>
+        </div>
       </div>
-      <div style="flex:1;min-width:0">
-        <div id="hint-title" style="font-family:var(--F);font-size:16px;font-weight:800;color:var(--txt);letter-spacing:-.3px;margin-bottom:5px"></div>
-        <div id="hint-text" style="font-size:12.8px;color:var(--t2);line-height:1.6"></div>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px">
-      <div id="hint-dots" style="display:flex;gap:5px"></div>
-      <div style="display:flex;gap:4px;align-items:center">
-        <button onclick="endHints()" style="padding:9px 12px;border-radius:11px;background:transparent;border:none;color:var(--t3);font-size:11.5px;font-weight:600;cursor:pointer">Пропустить</button>
-        <button onclick="nextHint()" id="hint-next" style="padding:11px 20px;border-radius:12px;background:linear-gradient(135deg,var(--lime),var(--cyan));border:none;color:#000;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(196,255,62,.22)">Далее</button>
+      <div id="hint-text" style="font-size:13px;color:#a8b0bb;line-height:1.62;margin-bottom:17px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div id="hint-dots" style="display:flex;gap:5px"></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button onclick="endHints()" style="padding:10px 13px;border-radius:12px;background:transparent;border:none;color:#6b7280;font-size:12px;font-weight:600;cursor:pointer">Пропустить</button>
+          <button onclick="nextHint()" id="hint-next" style="padding:12px 22px;border-radius:13px;background:linear-gradient(135deg,var(--lime),var(--cyan));border:none;color:#000;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 8px 22px rgba(196,255,62,.28)">Далее</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 </div>
 
 <!-- ════ ONBOARDING ════ -->
@@ -883,7 +892,7 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
 <div id="settings" class="sc">
   <div style="padding:max(env(safe-area-inset-top,0px),18px) 20px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0">
     <div class="Bk" onclick="go('home')">←</div>
-    <div style="font-family:var(--F);font-size:25px;font-weight:800;letter-spacing:-.5px" data-i="settingsTitle">Настройки</div>
+    <div><div style="font-family:var(--F);font-size:25px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(120deg,#fff 35%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent" data-i="settingsTitle">Настройки</div><div style="font-size:10px;color:var(--t3);letter-spacing:1.4px;margin-top:1px;font-family:var(--m)">TOXICSKILL APP</div></div>
   </div>
   <div class="sB" style="touch-action:pan-y;-webkit-overflow-scrolling:touch"><div style="padding:0 16px">
 
@@ -1124,79 +1133,124 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
 <!-- Rules -->
 <!-- Bonus Info Modal -->
 <div id="bonus-info-m" class="MBG" onclick="if(event.target===this)closeM('bonus-info-m')">
-  <div class="MOD" style="max-height:88vh">
+  <div class="MOD" style="max-height:90vh">
     <div class="MH"></div>
-    <div style="text-align:center;padding:4px 0 16px">
-      <div style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:84px;height:84px;margin-bottom:12px">
-        <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(255,202,80,.22),transparent 70%);animation:glow-pulse 2.6s ease-in-out infinite"></div>
-        <div style="position:absolute;inset:6px;border-radius:50%;border:1.5px solid rgba(255,202,80,.3)"></div>
-        <span style="position:relative;font-size:42px;filter:drop-shadow(0 0 16px rgba(255,202,80,.5))">⭐</span>
+
+    <!-- Шапка -->
+    <div style="text-align:center;padding:2px 0 18px">
+      <div style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:82px;height:82px;margin-bottom:12px">
+        <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(255,202,80,.24),transparent 68%);animation:glow-pulse 2.6s ease-in-out infinite"></div>
+        <div style="position:absolute;inset:7px;border-radius:50%;border:1.5px solid rgba(255,202,80,.3)"></div>
+        <span style="position:relative;font-size:40px">⭐</span>
       </div>
-      <div style="font-family:var(--F);font-size:25px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(120deg,#fff 25%,var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Бонусная система</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:5px">Играй → копи ⭐ → меняй на бесплатные часы</div>
+      <div style="font-family:var(--F);font-size:24px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(120deg,#fff 26%,var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Как работают баллы</div>
+      <div style="font-size:12.5px;color:var(--t2);margin-top:6px;line-height:1.55;max-width:266px;margin-left:auto;margin-right:auto">Играешь — копишь звёзды — меняешь на бесплатные часы</div>
     </div>
 
-    <div class="SL" style="margin:0 0 10px">Как копить</div>
-    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:11px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">⏱</div>
-        <div style="flex:1;font-size:12.5px;color:var(--t2)">Каждый час пакета</div>
-        <b style="font-family:var(--m);font-size:14px;color:var(--gold)">+2 ⭐</b>
+    <!-- Простая схема из 3 шагов -->
+    <div style="display:flex;align-items:stretch;gap:7px;margin-bottom:20px">
+      <div style="flex:1;padding:14px 8px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1);text-align:center">
+        <div style="font-size:22px;margin-bottom:5px">🎮</div>
+        <div style="font-size:10.5px;font-weight:800;color:var(--txt)">Играешь</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:2px">бронь в клубе</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:11px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">👑</div>
-        <div style="flex:1;font-size:12.5px;color:var(--t2)">Бронь VIP / Bootcamp</div>
-        <b style="font-family:var(--m);font-size:14px;color:var(--gold)">+2 ⭐</b>
+      <div style="display:flex;align-items:center;color:var(--t3);font-size:14px">→</div>
+      <div style="flex:1;padding:14px 8px;border-radius:15px;background:linear-gradient(165deg,rgba(255,202,80,.09),var(--s1));border:1px solid rgba(255,202,80,.22);text-align:center">
+        <div style="font-size:22px;margin-bottom:5px">⭐</div>
+        <div style="font-size:10.5px;font-weight:800;color:var(--gold)">Копишь</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:2px">звёзды сами</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:linear-gradient(165deg,rgba(196,255,62,.07),var(--s1));border:1px solid var(--lime30)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:11px;background:rgba(196,255,62,.12);display:flex;align-items:center;justify-content:center;font-size:18px">📱</div>
-        <div style="flex:1;font-size:12.5px;color:var(--t2)">Бронь через приложение</div>
-        <b style="font-family:var(--m);font-size:14px;color:var(--lime)">+1 ⭐</b>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:11px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">🎉</div>
-        <div style="flex:1;font-size:12.5px;color:var(--t2)">Первая бронь в месяце</div>
-        <b style="font-family:var(--m);font-size:14px;color:var(--gold)">+3 ⭐</b>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:linear-gradient(165deg,rgba(255,107,180,.07),var(--s1));border:1px solid rgba(255,107,180,.25)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:11px;background:rgba(255,107,180,.12);display:flex;align-items:center;justify-content:center;font-size:18px">🎂</div>
-        <div style="flex:1;font-size:12.5px;color:var(--t2)">В день рождения</div>
-        <b style="font-family:var(--m);font-size:14px;color:#ff6bb4">+50 ⭐</b>
+      <div style="display:flex;align-items:center;color:var(--t3);font-size:14px">→</div>
+      <div style="flex:1;padding:14px 8px;border-radius:15px;background:linear-gradient(165deg,rgba(196,255,62,.09),var(--s1));border:1px solid var(--lime30);text-align:center">
+        <div style="font-size:22px;margin-bottom:5px">🎁</div>
+        <div style="font-size:10.5px;font-weight:800;color:var(--lime)">Играешь</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:2px">бесплатно</div>
       </div>
     </div>
 
-    <div class="SL" style="margin:0 0 10px">Обмен на часы</div>
-    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">
-      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(196,255,62,.1),rgba(196,255,62,.02));border:1px solid var(--lime30)">
-        <b style="font-family:var(--m);font-size:19px;color:var(--lime);min-width:64px">40 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">1 час Standard</div><div style="font-size:10px;color:var(--t3)">~8–10 визитов</div></div>
+    <!-- Начисления -->
+    <div class="SL" style="margin:0 0 10px">За что дают звёзды</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
+        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">⏱</div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Каждый час игры</div><div style="font-size:10px;color:var(--t3);margin-top:1px">3 часа = 6 ⭐</div></div>
+        <b style="font-family:var(--m);font-size:15px;color:var(--gold)">+2</b>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(255,202,80,.1),rgba(255,202,80,.02));border:1px solid rgba(255,202,80,.25)">
-        <b style="font-family:var(--m);font-size:19px;color:var(--gold);min-width:64px">100 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">3 часа Standard</div><div style="font-size:10px;color:var(--t3)">~20 визитов</div></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
+        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">👑</div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Зона VIP или Bootcamp</div><div style="font-size:10px;color:var(--t3);margin-top:1px">сверху к часам</div></div>
+        <b style="font-family:var(--m);font-size:15px;color:var(--gold)">+2</b>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(75,158,255,.1),rgba(75,158,255,.02));border:1px solid rgba(75,158,255,.25)">
-        <b style="font-family:var(--m);font-size:19px;color:var(--blue);min-width:64px">170 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">5 часов Standard</div><div style="font-size:10px;color:var(--t3)">~35 визитов</div></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,rgba(196,255,62,.07),var(--s1));border:1px solid var(--lime30)">
+        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(196,255,62,.12);display:flex;align-items:center;justify-content:center;font-size:18px">📱</div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Бронь через приложение</div><div style="font-size:10px;color:var(--t3);margin-top:1px">а не по телефону</div></div>
+        <b style="font-family:var(--m);font-size:15px;color:var(--lime)">+1</b>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(255,202,80,.14),rgba(255,202,80,.03));border:1.5px solid rgba(255,202,80,.35)">
-        <b style="font-family:var(--m);font-size:19px;color:var(--gold);min-width:64px">300 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--gold)">5 часов VIP / Bootcamp</div><div style="font-size:10px;color:var(--t3)">топ-награда</div></div>
-        <span style="font-size:16px">👑</span>
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
+        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">🎉</div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Первая бронь месяца</div><div style="font-size:10px;color:var(--t3);margin-top:1px">раз в месяц</div></div>
+        <b style="font-family:var(--m);font-size:15px;color:var(--gold)">+3</b>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,rgba(255,107,180,.08),var(--s1));border:1px solid rgba(255,107,180,.25)">
+        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,107,180,.14);display:flex;align-items:center;justify-content:center;font-size:18px">🎂</div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">День рождения</div><div style="font-size:10px;color:var(--t3);margin-top:1px">укажи дату в профиле</div></div>
+        <b style="font-family:var(--m);font-size:15px;color:#ff6bb4">+50</b>
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border-radius:12px;background:rgba(255,202,80,.06);border:1px dashed rgba(255,202,80,.25);margin-bottom:14px">
-      <span style="font-size:15px">⏰</span>
-      <span style="font-size:11px;color:var(--gold);line-height:1.5"><b>Ваучер живёт 24 часа</b> — покажи его админу при визите</span>
+    <!-- Награды -->
+    <div class="SL" style="margin:0 0 10px">На что менять</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(196,255,62,.1),rgba(196,255,62,.02));border:1px solid var(--lime30)">
+        <b style="font-family:var(--m);font-size:18px;color:var(--lime);min-width:58px">40 ⭐</b>
+        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">1 час Standard</div><div style="font-size:10px;color:var(--t3);margin-top:1px">это ~7 часов игры</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(255,202,80,.1),rgba(255,202,80,.02));border:1px solid rgba(255,202,80,.25)">
+        <b style="font-family:var(--m);font-size:18px;color:var(--gold);min-width:58px">100 ⭐</b>
+        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">3 часа Standard</div><div style="font-size:10px;color:var(--t3);margin-top:1px">выгоднее, чем брать по часу</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(75,158,255,.1),rgba(75,158,255,.02));border:1px solid rgba(75,158,255,.25)">
+        <b style="font-family:var(--m);font-size:18px;color:var(--blue);min-width:58px">170 ⭐</b>
+        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">5 часов Standard</div><div style="font-size:10px;color:var(--t3);margin-top:1px">целый вечер бесплатно</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(255,202,80,.15),rgba(255,202,80,.03));border:1.5px solid rgba(255,202,80,.38)">
+        <b style="font-family:var(--m);font-size:18px;color:var(--gold);min-width:58px">300 ⭐</b>
+        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--gold)">5 часов VIP / Bootcamp</div><div style="font-size:10px;color:var(--t3);margin-top:1px">топовое железо, топ-награда</div></div>
+        <span style="font-size:17px">👑</span>
+      </div>
+    </div>
+
+    <!-- Как забрать -->
+    <div class="SL" style="margin:0 0 10px">Как забрать награду</div>
+    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:16px">
+      <div style="display:flex;gap:11px;align-items:center">
+        <div style="width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--gold);color:#000;font-family:var(--m);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center">1</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.45">В профиле жмёшь награду — списываем баллы, выдаём <b style="color:var(--txt)">ваучер</b></div>
+      </div>
+      <div style="display:flex;gap:11px;align-items:center">
+        <div style="width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--cyan);color:#000;font-family:var(--m);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center">2</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.45">Приходишь в клуб и <b style="color:var(--txt)">показываешь ваучер админу</b></div>
+      </div>
+      <div style="display:flex;gap:11px;align-items:center">
+        <div style="width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--lime);color:#000;font-family:var(--m);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center">3</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.45">Садишься и <b style="color:var(--lime)">играешь бесплатно</b> 🎮</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:13px 15px;border-radius:14px;background:rgba(255,202,80,.07);border:1.5px solid rgba(255,202,80,.28);margin-bottom:14px">
+      <span style="font-size:18px;flex-shrink:0">⏰</span>
+      <div>
+        <div style="font-size:12px;font-weight:800;color:var(--gold);margin-bottom:2px">Ваучер живёт 24 часа</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.5">Активируй, только когда собираешься в клуб — иначе сгорит, а баллы не вернутся.</div>
+      </div>
     </div>
 
     <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:13px;background:var(--s1);border:1px solid var(--b1);margin-bottom:16px">
-      <span style="font-size:16px;flex-shrink:0">🛡</span>
-      <div style="font-size:10.5px;color:var(--t3);line-height:1.75">Баллы дают первые <b style="color:var(--t2)">2 брони в день</b> · потолок <b style="color:var(--t2)">15 ⭐/сутки</b> · отмена брони списывает баллы · всё считается на сервере</div>
+      <span style="font-size:15px;flex-shrink:0">🛡</span>
+      <div style="font-size:10.5px;color:var(--t3);line-height:1.7">Баллы дают за первые <b style="color:var(--t2)">2 брони в день</b>, максимум <b style="color:var(--t2)">15 ⭐ в сутки</b>. Отмена брони списывает начисленное. Всё считается на сервере — баллы не потеряются.</div>
     </div>
 
-    <button class="BTN" onclick="closeM('bonus-info-m')" style="background:linear-gradient(135deg,var(--gold),#ffb84d);color:#000;font-weight:800">Погнали копить! ⭐</button>
+    <button class="BTN" onclick="closeM('bonus-info-m')" style="background:linear-gradient(135deg,var(--gold),#ffb84d);color:#000;font-weight:800">Понятно, погнали копить! ⭐</button>
   </div>
 </div>
 
@@ -1586,6 +1640,7 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
       <button class="skbtn" onpointerdown="snakeDir(1,0);event.preventDefault()">►</button>
     </div>
   </div>
+</div>
 </div>
 
 <!-- Toast -->
@@ -4673,29 +4728,33 @@ function startHints(manual){
 function showHint(){
   const h=HINTS[_hintIdx];if(!h){endHints(true);return}
   const sp=document.getElementById('hint-spotlight')
+  const dim=document.getElementById('hint-dim')
   const card=document.getElementById('hint-card')
   const ico=document.getElementById('hint-ico')
+  const stp=document.getElementById('hint-step')
   const ttl=document.getElementById('hint-title')
   const txt=document.getElementById('hint-text')
   const dots=document.getElementById('hint-dots')
   const nx=document.getElementById('hint-next')
   if(!sp||!card){endHints(false);return}
   const app=document.getElementById('app').getBoundingClientRect()
-  // плавная смена текста
   ;[ico,ttl,txt].forEach(el=>{if(el){el.style.transition='none';el.style.opacity='0'}})
   requestAnimationFrame(()=>{
     if(ico)ico.textContent=h.ico
+    if(stp)stp.textContent='ШАГ '+(_hintIdx+1)+' ИЗ '+HINTS.length
     if(ttl)ttl.textContent=h.title
     if(txt)txt.innerHTML=h.text
-    ;[ico,ttl,txt].forEach((el,k)=>{if(el){el.style.transition='opacity .32s var(--e) '+(k*50)+'ms';el.style.opacity='1'}})
+    ;[ico,ttl,txt].forEach((el,k)=>{if(el){el.style.transition='opacity .34s var(--e) '+(k*55)+'ms';el.style.opacity='1'}})
   })
-  if(dots)dots.innerHTML=HINTS.map((_,k)=>`<div style="width:${k===_hintIdx?'20px':'6px'};height:6px;border-radius:3px;background:${k===_hintIdx?'var(--lime)':'var(--s4)'};${k===_hintIdx?'box-shadow:0 0 8px rgba(196,255,62,.5)':''};transition:all .32s var(--e)"></div>`).join('')
+  if(dots)dots.innerHTML=HINTS.map((_,k)=>`<div style="width:${k===_hintIdx?'22px':'6px'};height:6px;border-radius:3px;background:${k===_hintIdx?'var(--lime)':'#2a2f38'};transition:all .34s var(--e)"></div>`).join('')
   if(nx)nx.textContent=_hintIdx===HINTS.length-1?'Погнали! 🎮':'Далее'
-  const navH=`calc(var(--nav) + env(safe-area-inset-bottom,0px) + 14px)`
-  // Шаг без цели — прожектор скрыт, карточка снизу
+  const navGap='calc(var(--nav) + env(safe-area-inset-bottom,0px) + 16px)'
+  // Шаг без цели: сплошное затемнение, карточка по центру
   if(!h.sel){
-    sp.style.opacity='0';sp.style.width='0';sp.style.height='0'
-    card.style.bottom=navH;card.style.top='auto'
+    sp.style.opacity='0'
+    if(dim)dim.style.opacity='1'
+    card.style.top='50%';card.style.bottom='auto'
+    card.style.transform='translateY(-50%)'
     return
   }
   const target=document.querySelector(h.sel)
@@ -4707,18 +4766,24 @@ function showHint(){
     setTimeout(showHint,40);return
   }
   _hintRetry=0
+  // Прожектор сам затемняет фон — общий слой убираем
+  if(dim)dim.style.opacity='0'
   sp.style.opacity='1'
-  const pad=8
+  card.style.transform='none'
+  const pad=9
   sp.style.left=(r.left-app.left-pad)+'px'
   sp.style.top=(r.top-app.top-pad)+'px'
   sp.style.width=(r.width+pad*2)+'px'
   sp.style.height=(r.height+pad*2)+'px'
-  // Карточка снизу; если подсвечиваемое внизу экрана — уводим карточку наверх
-  const targetBottom=r.bottom-app.top
-  if(targetBottom>app.height*0.62){
-    card.style.top='max(env(safe-area-inset-top,0px),22px)';card.style.bottom='auto'
+  // Карточка не должна перекрывать подсвеченное
+  const spotTop=r.top-app.top, spotBottom=r.bottom-app.top
+  const cardH=card.offsetHeight||210
+  if(spotBottom+cardH+34<app.height){
+    card.style.top=(spotBottom+22)+'px';card.style.bottom='auto'
+  }else if(spotTop-cardH-34>0){
+    card.style.bottom=(app.height-spotTop+22)+'px';card.style.top='auto'
   }else{
-    card.style.bottom=navH;card.style.top='auto'
+    card.style.bottom=navGap;card.style.top='auto'
   }
 }
 function nextHint(){_hintIdx++;_hintRetry=0;if(_hintIdx>=HINTS.length){endHints(true)}else showHint()}
