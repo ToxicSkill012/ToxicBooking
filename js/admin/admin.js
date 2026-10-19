@@ -1,7 +1,7 @@
 // Панель владельца
 
 // ── АДМИН: ДИАГНОСТИКА ДОСТУПА ──
-const _DIAG_WHY={no_initdata:'нет initData — открой приложение через бота в Telegram',hash_mismatch:'подпись не сошлась — токен в бэкенде не от этого бота? Используй 🔑 ключ',stale:'сессия устарела — перезапусти Mini App',not_admin:'это не админский Telegram ID',parse_error:'ошибка разбора initData — используй 🔑 ключ',no_hash:'битый initData'}
+const _DIAG_WHY={no_token:'в бэкенде не заданы токены ботов — см. инструкцию ниже',no_initdata:'нет initData — открой приложение через бота в Telegram',hash_mismatch:'подпись не сошлась — токен в бэкенде не от этого бота? Используй 🔑 ключ',stale:'сессия устарела — перезапусти Mini App',not_admin:'это не админский Telegram ID',parse_error:'ошибка разбора initData — используй 🔑 ключ',no_hash:'битый initData'}
 async function adminRunDiag(){
   const el=document.getElementById('adm-diag');if(!el)return
   el.innerHTML='<span class="spin" style="width:11px;height:11px"></span><span>Проверяю…</span>'
@@ -13,6 +13,7 @@ async function adminRunDiag(){
       ctrl?{cache:'no-store',signal:ctrl.signal}:{cache:'no-store'})
     clearTimeout(tmr)
     const d=await r.json()
+    adminSetupCard(d)
     if(d&&d.v){
       if(d.access){
         el.innerHTML=`<span>🟢</span><span style="color:var(--lime)">Бэкенд v${d.v} · бот ${d.bot||'?'} · доступ ОК (${d.why==='key'?'по 🔑 ключу':'Telegram-подпись'})</span>`
@@ -37,6 +38,28 @@ async function adminRunDiag(){
       '</span>'
     el.style.borderColor='rgba(255,63,96,.4)'
   }
+}
+
+// Бэкенд обновлён, но секреты не заданы → без токена нельзя проверить подпись Telegram,
+// поэтому «нет доступа», и уведомления в Telegram не уходят. Показываем, что именно добавить.
+function adminSetupCard(d){
+  const box=document.getElementById('adm-setup');if(!box)return
+  const sc=d&&d.secrets
+  const miss=sc?[['BOT_TOKEN',sc.bot,'токен бота уведомлений (@toxicskill_booking_bot) — из @BotFather'],
+    ['USER_BOT_TOKEN',sc.userBot,'токен клиентского бота (@toxicskill_bot), через которого открывается приложение'],
+    ['ADMIN_KEY',sc.adminKey,'свой длинный пароль — потом введи его в поле 🔑 ниже'],
+    ['BRIDGE_KEY',sc.bridgeKey,'ключ для моста Gizmo (любой длинный набор букв и цифр)']].filter(x=>!x[1]):[]
+  if(!miss.length){box.innerHTML='';box.style.display='none';return}
+  box.style.display='block'
+  box.innerHTML=`<div class="setup-h">🔧 Бэкенд не настроен: нет ${miss.length===4?'ни одного секрета':miss.map(m=>m[0]).join(', ')}</div>
+    <div class="setup-t">Поэтому админка пишет «нет доступа», а уведомления в Telegram не уходят. Добавь в Apps Script:</div>
+    <ol class="setup-l">
+      <li>Открой проект Apps Script → слева <b>⚙️ Настройки проекта</b></li>
+      <li>Внизу <b>«Свойства скрипта»</b> → «Изменить свойства скрипта» → «Добавить свойство»</li>
+      <li>${miss.map(m=>`<code>${m[0]}</code> — ${m[2]}`).join('<br>')}</li>
+      <li>«Сохранить свойства скрипта» — переразвёртывать не нужно, сработает сразу</li>
+    </ol>
+    <button type="button" class="BTN ghost" style="margin-top:8px" onclick="adminRunDiag()">🔄 Проверить снова</button>`
 }
 
 // ── АДМИН: РЕЗЕРВНЫЙ КЛЮЧ ──

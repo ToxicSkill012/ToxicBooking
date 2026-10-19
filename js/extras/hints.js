@@ -3,8 +3,8 @@
 // ═══ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ (coach-marks) ═══
 const HINTS=[
   {sel:null,ico:'🎮',title:'Добро пожаловать!',text:'Покажем главное за 20 секунд — где бронировать, как копить баллы и что где лежит.'},
-  {sel:'[data-tour="zones"]',ico:'⚡',title:'Выбери зону',text:'Standard, VIP или Bootcamp. Жми на зону — дальше пакет, свободный компьютер и время.'},
-  {sel:'[data-tour="group"]',ico:'👥',title:'Пришёл с друзьями?',text:'Забронируй <b>несколько ПК разом</b> — отметишь свободные машины на схеме зала.'},
+  {sel:'[data-tour="zones"]',ico:'⚡',title:'Выбери зону',text:'Standard, VIP или Bootcamp. Дальше — пакет или <b>своё время</b> от 30 минут, точное время и свободный ПК.'},
+  {sel:'[data-tour="group"]',ico:'👥',title:'Пришёл с друзьями?',text:'Забронируй <b>до 8 ПК рядом</b> одной бронью — приложение само подберёт соседние места.'},
   {sel:'[data-tour="nav-bklist"]',ico:'📅',title:'Твои брони',text:'Активные сеансы здесь. Бот напомнит за 30 минут до игры.'},
   {sel:'[data-tour="nav-profile"]',ico:'⭐',title:'Профиль и баллы',text:'Звёзды, статистика и достижения. Меняй ⭐ на <b>бесплатные часы</b> — от 40 за час.'}
 ]
@@ -119,8 +119,8 @@ function endHints(completed){
 function showGuide(){startHints(true)}
 
 // ═══ ЧТО НОВОГО ═══
-const WN_VERSION='v3.0'
-const BUILD_ID='B30-glass'
+const WN_VERSION='v4.0'
+const BUILD_ID='B40-flow'
 let _wnShown=false
 function checkWhatsNew(){
   if(_wnShown)return

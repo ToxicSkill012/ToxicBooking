@@ -123,42 +123,31 @@ function liveLabel(st){
   return {main:en?'free':'свободен',sub:st.nextAbs?((en?'till ':'до ')+fmtAbs(st.nextAbs)):(en?'all day':'весь день'),cls:'free'}
 }
 
-// ═══ «ЗАЛ СЕЙЧАС» — живое табло на главной ═══
-const HALL=[
-  {key:'std',pre:'ST',name:'STANDARD',nums:[1,2,3,4,5,6,7,8,9,10,11,13,15]},
-  {key:'vip',pre:'VIP',name:'VIP',nums:[1,2,3]},
-  {key:'bc',pre:'BC',name:'BOOTCAMP',nums:[1,2,3,4,5]},
-]
-const TOTAL_PCS=HALL.reduce((s,z)=>s+z.nums.length,0)
-
-let _hallHtml=''
+// ═══ Сколько ПК свободно прямо сейчас — на главной и на карточках зон ═══
+const TOTAL_PCS=Object.keys(ZONES).reduce((s,k)=>s+ZONES[k].pcCount,0)
+let _liveKey=''
 function renderLive(){
   const bookings=_bookingsCache.loaded?_bookingsCache.data:[]
-  let busy=0
-  const rows=HALL.map(z=>{
-    const cells=z.nums.map(n=>{
-      const lbl=z.pre+'-'+String(n).padStart(2,'0')
-      const st=pcLive(lbl,bookings)
-      if(st.state==='busy')busy++
-      const t=st.state==='busy'&&st.leftMin!==null?fmtLeftShort(st.leftMin):st.state==='soon'?minToHM(st.nextAbs):''
-      const title=lbl+' · '+liveLabel(st).main+(st.state==='busy'&&st.leftMin!==null?' ('+fmtDur(st.leftMin)+')':'')
-      return `<button class="hc ${st.state}" title="${title}" aria-label="${title}" onclick="openZone('${z.key}')"><b>${String(n).padStart(2,'0')}</b>${t?`<i>${t}</i>`:''}</button>`
-    }).join('')
-    return `<div class="hz hz-${z.key}"><div class="hz-n">${z.name}</div><div class="hz-c">${cells}</div></div>`
-  }).join('')
-  const free=Math.max(0,TOTAL_PCS-busy)
+  const free={}
+  let total=0
+  Object.keys(ZONES).forEach(k=>{
+    free[k]=zonePcs(k).filter(lbl=>pcLive(lbl,bookings).state!=='busy').length
+    total+=free[k]
+  })
+  const key=JSON.stringify(free)
+  if(key===_liveKey)return
+  _liveKey=key
   const el=document.getElementById('free-count')
   if(el){
-    el.textContent=free
-    el.style.color=free<=3?'var(--red)':free<=8?'var(--gold)':'var(--lime)'
+    el.textContent=total
+    el.style.color=total<=3?'var(--red)':total<=8?'var(--gold)':'var(--lime)'
   }
-  const body=document.getElementById('hall-body')
-  // Перерисовываем табло, только если что-то поменялось
-  if(body&&(_hallHtml!==rows||!body.firstChild)){body.innerHTML=rows;_hallHtml=rows}
-  const upd=document.getElementById('hall-upd')
-  if(upd){
-    const fresh=gizmoFresh()
-    upd.textContent=fresh?((D.lang==='en'?'live · ':'онлайн · ')+minToHM(clubNow().min)):(D.lang==='en'?'by bookings':'по броням')
-    upd.classList.toggle('on',fresh)
-  }
+  // На карточке зоны: «9/13 свободно»
+  Object.keys(ZONES).forEach(k=>{
+    const t=document.querySelector(`.ZC.${k} .Ztag`)
+    if(t){
+      t.innerHTML=`<i class="zfree${free[k]?'':' none'}"></i>${free[k]}/${ZONES[k].pcCount}${k==='std'?(D.lang==='en'?' free':' свободно'):''}`
+      t.title=D.lang==='en'?'free now':'свободно сейчас'
+    }
+  })
 }

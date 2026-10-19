@@ -21,8 +21,8 @@
 <meta name="referrer" content="no-referrer"/>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=3.0.1">
-<link rel="stylesheet" href="css/glass.css?v=3.0.1">
+<link rel="stylesheet" href="css/app.css?v=4.0.1">
+<link rel="stylesheet" href="css/glass.css?v=4.0.1">
 <script>
 // До загрузки стилей: «лёгкий режим» и класс мощности устройства — без вспышки тяжёлых эффектов
 (function(){var h=document.documentElement;try{if(localStorage.getItem('ts_lowfx')==='1')h.classList.add('pre-lowfx')}catch(e){}
@@ -249,26 +249,13 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
       <div class="pill live-shimmer"><div class="LD"></div><span class="LV" id="free-count">21</span>&nbsp;<span data-i="pcsFree">ПК свободно</span></div>
       <div class="pill" style="background:rgba(42,237,181,.08);border-color:rgba(42,237,181,.2);color:var(--cyan)">⚡&nbsp;<span data-i="open247">Открыто 24/7</span></div>
     </div>
-    <!-- Зал сейчас: живое табло — кто занят и сколько осталось -->
-    <section class="hall glass fu" style="animation-delay:.06s" aria-label="Зал сейчас">
-      <div class="hall-h">
-        <div class="hall-t"><span class="LD"></span><span data-i="hallTitle">Зал сейчас</span></div>
-        <div class="hall-u" id="hall-upd"></div>
-      </div>
-      <div id="hall-body" class="hall-b"></div>
-      <div class="hall-l">
-        <span><i class="hl free"></i><span data-i="hallFree">свободен</span></span>
-        <span><i class="hl soon"></i><span data-i="hallSoon">скоро бронь</span></span>
-        <span><i class="hl busy"></i><span data-i="hallBusy">занят · осталось</span></span>
-      </div>
-    </section>
     <!-- Групповое бронирование -->
-    <div data-tour="group" onclick="openGroupBooking()" style="margin:10px 16px 0;border-radius:var(--R);background:linear-gradient(135deg,rgba(75,158,255,.1),rgba(196,255,62,.05));border:1px solid rgba(75,158,255,.22);padding:15px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.2)">
+    <div data-tour="group" onclick="openTeam()" style="margin:10px 16px 0;border-radius:var(--R);background:linear-gradient(135deg,rgba(75,158,255,.1),rgba(196,255,62,.05));border:1px solid rgba(75,158,255,.22);padding:15px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.2)">
       <div style="position:absolute;right:-20px;top:-20px;width:110px;height:110px;background:radial-gradient(circle,rgba(75,158,255,.16),transparent 72%);pointer-events:none"></div>
       <div style="width:46px;height:46px;flex-shrink:0;border-radius:14px;background:linear-gradient(135deg,#4b9eff,#2aedb5);display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 16px rgba(75,158,255,.3)">👥</div>
       <div style="flex:1;min-width:0;position:relative;z-index:1">
         <div style="font-family:var(--F);font-size:15px;font-weight:800;color:var(--blue);text-shadow:0 0 12px rgba(75,158,255,.3)">Бронь для команды</div>
-        <div style="font-size:11px;color:var(--t2);margin-top:2px">Несколько ПК сразу · соседние места</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">До 8 ПК рядом · одно время, одна бронь</div>
       </div>
       <div style="flex-shrink:0;width:26px;height:26px;border-radius:8px;background:rgba(75,158,255,.12);display:flex;align-items:center;justify-content:center;color:var(--blue);font-size:15px;position:relative;z-index:1">›</div>
     </div>
@@ -593,6 +580,7 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div id="adm-diag" onclick="adminRunDiag()" style="display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:12px;background:var(--s1);border:1px dashed var(--b2);font-family:var(--m);font-size:10.5px;color:var(--t3);cursor:pointer;margin-bottom:6px">
       <span class="spin" style="width:11px;height:11px"></span><span>Проверяю связь с бэкендом…</span>
     </div>
+    <div id="adm-setup" class="setup" style="display:none"></div>
 
     <div class="SL" style="margin-top:14px">Статистика</div>
     <div id="admin-dash" style="margin-bottom:8px">
@@ -1076,97 +1064,6 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
   </div>
 </div>
 
-<!-- ════ ГРУППОВОЕ БРОНИРОВАНИЕ ════ -->
-<div id="group-m" class="MBG" onclick="if(event.target===this)closeM('group-m')">
-  <div class="MOD" style="max-height:88%;overflow-y:auto;padding-bottom:24px">
-    <div class="MH"></div>
-    <div style="text-align:center;margin-bottom:18px">
-      <div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#4b9eff,#2aedb5);margin-bottom:10px;box-shadow:0 8px 24px rgba(75,158,255,.3)"><span style="font-size:32px">👥</span></div>
-      <div style="font-family:var(--F);font-size:21px;font-weight:800;letter-spacing:-.7px">Бронь для команды</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:4px">Забронируем соседние ПК для всех</div>
-    </div>
-
-    <!-- ЗОНА -->
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
-      <div style="width:21px;height:21px;flex-shrink:0;border-radius:50%;background:var(--lime);color:#000;font-family:var(--m);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">1</div>
-      <div style="font-size:11.5px;font-weight:800;color:var(--txt);letter-spacing:.2px">Зона</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
-      <div onclick="selectGroupZone('std')" id="grpz-std" class="grp-zone" style="padding:14px 16px;border-radius:16px;background:var(--s1);border:2px solid var(--b1);display:flex;align-items:center;gap:13px;cursor:pointer;transition:all .18s">
-        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#182410,#101828);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⚡</div>
-        <div style="flex:1"><div style="font-size:14px;font-weight:700">Standard</div><div style="font-size:11px;color:var(--t2)">RTX 3060Ti · до 13 ПК · от 6 BYN</div></div>
-        <div class="grp-check" style="width:22px;height:22px;border-radius:50%;border:2px solid var(--b2);flex-shrink:0;transition:all .15s"></div>
-      </div>
-      <div onclick="selectGroupZone('vip')" id="grpz-vip" class="grp-zone" style="padding:14px 16px;border-radius:16px;background:var(--s1);border:2px solid var(--b1);display:flex;align-items:center;gap:13px;cursor:pointer;transition:all .18s">
-        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2a1f0a,#1a1408);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">👑</div>
-        <div style="flex:1"><div style="font-size:14px;font-weight:700">VIP</div><div style="font-size:11px;color:var(--t2)">RTX 4070 · до 3 ПК · от 8 BYN</div></div>
-        <div class="grp-check" style="width:22px;height:22px;border-radius:50%;border:2px solid var(--b2);flex-shrink:0;transition:all .15s"></div>
-      </div>
-      <div onclick="selectGroupZone('bc')" id="grpz-bc" class="grp-zone" style="padding:14px 16px;border-radius:16px;background:var(--s1);border:2px solid var(--b1);display:flex;align-items:center;gap:13px;cursor:pointer;transition:all .18s">
-        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#0a2418,#081a14);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏆</div>
-        <div style="flex:1"><div style="font-size:14px;font-weight:700">Bootcamp</div><div style="font-size:11px;color:var(--t2)">RTX 5060Ti · до 5 ПК · от 8 BYN</div></div>
-        <div class="grp-check" style="width:22px;height:22px;border-radius:50%;border:2px solid var(--b2);flex-shrink:0;transition:all .15s"></div>
-      </div>
-    </div>
-
-    <!-- ПАКЕТ -->
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
-      <div style="width:21px;height:21px;flex-shrink:0;border-radius:50%;background:var(--lime);color:#000;font-family:var(--m);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">2</div>
-      <div style="font-size:11.5px;font-weight:800;color:var(--txt);letter-spacing:.2px">Сколько часов</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:18px">
-      <div onclick="selectGroupPkg(1)" id="grpp-1" class="grp-pkg" style="padding:14px 8px;border-radius:14px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;transition:all .15s"><div style="font-size:15px;font-weight:800">1ч</div><div style="font-size:11px;color:var(--t2);margin-top:3px" id="grpp-1-p">6 BYN</div></div>
-      <div onclick="selectGroupPkg(3)" id="grpp-3" class="grp-pkg" style="padding:14px 8px;border-radius:14px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;transition:all .15s"><div style="font-size:15px;font-weight:800">3ч</div><div style="font-size:11px;color:var(--t2);margin-top:3px" id="grpp-3-p">15 BYN</div></div>
-      <div onclick="selectGroupPkg(5)" id="grpp-5" class="grp-pkg" style="padding:14px 8px;border-radius:14px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;transition:all .15s"><div style="font-size:15px;font-weight:800">5ч</div><div style="font-size:11px;color:var(--t2);margin-top:3px" id="grpp-5-p">21 BYN</div></div>
-    </div>
-
-    <!-- ДАТА + ВРЕМЯ -->
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
-      <div style="width:21px;height:21px;flex-shrink:0;border-radius:50%;background:var(--lime);color:#000;font-family:var(--m);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">3</div>
-      <div style="font-size:11.5px;font-weight:800;color:var(--txt);letter-spacing:.2px">Дата и время</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px">
-      <input id="grp-date" type="date" class="INP" onchange="loadGroupPcs()">
-      <div class="tf-row">
-        <span>⏰ Время прихода</span>
-        <div id="grp-time" class="tf"></div>
-      </div>
-      <div class="tf-note">± — по 5 минут, нажми на время — введёшь точно до минуты</div>
-    </div>
-
-    <!-- ВЫБОР ПК -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="display:flex;align-items:center;gap:9px">
-        <span style="width:21px;height:21px;flex-shrink:0;border-radius:50%;background:var(--lime);color:#000;font-family:var(--m);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">4</span>
-        <span style="font-size:11.5px;font-weight:800;color:var(--txt)">Компьютеры</span>
-      </span>
-      <span style="font-size:11px;color:var(--blue);font-weight:700" id="grp-pc-count">0 выбрано</span>
-    </div>
-    <div id="grp-pc-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:8px;min-height:50px">
-      <div style="grid-column:1/-1;text-align:center;color:var(--t3);font-size:11px;padding:14px"><span class="spin"></span></div>
-    </div>
-    <div style="display:flex;gap:10px;font-size:9px;color:var(--t3);margin-bottom:18px;padding:0 2px">
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:3px;background:var(--lime)"></span>выбран</span>
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:3px;background:var(--s3)"></span>свободен</span>
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:3px;background:rgba(255,63,96,.4)"></span>занят</span>
-    </div>
-
-    <!-- КОНТАКТ -->
-    <input id="grp-name" class="INP" placeholder="Имя и телефон для связи" style="margin-bottom:16px">
-
-    <!-- ИТОГ -->
-    <div id="grp-total" style="padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(75,158,255,.1),rgba(42,237,181,.05));border:1px solid rgba(75,158,255,.2);margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:6px"><span id="grp-calc">2 ПК × 6 BYN × 1ч</span><span></span></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;font-weight:600">Итого</span><span style="font-family:var(--m);font-size:24px;font-weight:700;color:var(--blue)" id="grp-sum">12 BYN</span></div>
-    </div>
-
-    <div style="display:flex;gap:8px">
-      <button class="BTN ghost" onclick="closeM('group-m')" style="flex:1">Отмена</button>
-      <button class="BTN" id="grp-book-btn" onclick="bookGroupPcs()" style="flex:2;background:linear-gradient(135deg,#4b9eff,#2aedb5);color:#000;font-weight:800">🎮 Забронировать</button>
-    </div>
-  </div>
-</div>
-
 <!-- ════ АДМИН: ОФФЛАЙН-БРОНЬ ════ -->
 <div id="admin-book-m" class="MBG" onclick="if(event.target===this)closeM('admin-book-m')">
   <div class="MOD" style="max-height:88%;overflow-y:auto;padding-bottom:24px">
@@ -1226,17 +1123,17 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div class="MH"></div>
     <div style="text-align:center;padding:2px 0 16px">
       <div class="wn-badge-ico"><span>✨</span></div>
-      <div class="wn-ver">ОБНОВЛЕНИЕ v3.0</div>
+      <div class="wn-ver">ОБНОВЛЕНИЕ v4.0</div>
       <div class="wn-title">Что нового</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:5px">Новый дизайн «стекло» и живой зал</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:5px">Своё время, бронь для команды и новая лента</div>
     </div>
 
     <div class="wn-list">
-      <div class="wn-item lime"><div class="wn-ic">🟢</div><div><b>Зал сейчас</b><span>На главной видно каждый ПК: свободен он или занят — и сколько осталось до конца сессии</span></div></div>
-      <div class="wn-item blue"><div class="wn-ic">⏱</div><div><b>Время до минуты</b><span>Листай ленту времени или жми ± — начало брони с точностью до минуты, занятое время видно сразу</span></div></div>
-      <div class="wn-item gold"><div class="wn-ic">🔴</div><div><b>«Занят до 18:45»</b><span>На каждом компьютере написано, до скольки он занят. Его можно забронировать на потом</span></div></div>
-      <div class="wn-item pink"><div class="wn-ic">📅</div><div><b>Живые брони</b><span>В «Моих бронях» — таймер до начала и до конца сессии, статусы обновляются сами</span></div></div>
-      <div class="wn-item"><div class="wn-ic">💎</div><div><b>Стекло как в iOS</b><span>Новый прозрачный дизайн, плавнее и быстрее даже на слабых телефонах</span></div></div>
+      <div class="wn-item lime"><div class="wn-ic">⏱</div><div><b>Своё время</b><span>Не только пакеты: играй сколько нужно — от 30 минут до 12 часов. Если пакет выгоднее — подскажем</span></div></div>
+      <div class="wn-item blue"><div class="wn-ic">👥</div><div><b>Бронь для команды</b><span>До 8 ПК рядом одной бронью: выбери число игроков — места подберутся сами</span></div></div>
+      <div class="wn-item gold"><div class="wn-ic">🎚</div><div><b>Новая лента времени</b><span>Листай пальцем с инерцией, жми на нужную минуту — сразу видно, где мало свободных ПК</span></div></div>
+      <div class="wn-item pink"><div class="wn-ic">✅</div><div><b>Только свободные ПК</b><span>Сначала выбираешь время — потом показываем компьютеры, которые свободны именно тогда</span></div></div>
+      <div class="wn-item"><div class="wn-ic">🛡</div><div><b>Честная цена</b><span>Стоимость считает сервер клуба — в приложении и на кассе одна и та же сумма</span></div></div>
     </div>
 
     <div class="wn-fb">
@@ -1300,32 +1197,31 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- Toast -->
 <div id="toast"></div>
-<script defer src="js/core/guard.js?v=3.0.1"></script>
-<script defer src="js/core/i18n.js?v=3.0.1"></script>
-<script defer src="js/core/config.js?v=3.0.1"></script>
-<script defer src="js/core/clock.js?v=3.0.1"></script>
-<script defer src="js/core/api.js?v=3.0.1"></script>
-<script defer src="js/core/state.js?v=3.0.1"></script>
-<script defer src="js/core/diag.js?v=3.0.1"></script>
-<script defer src="js/core/ui.js?v=3.0.1"></script>
-<script defer src="js/screens/home.js?v=3.0.1"></script>
-<script defer src="js/screens/onboarding.js?v=3.0.1"></script>
-<script defer src="js/booking/time-picker.js?v=3.0.1"></script>
-<script defer src="js/booking/booking.js?v=3.0.1"></script>
-<script defer src="js/core/bookings-api.js?v=3.0.1"></script>
-<script defer src="js/screens/my-bookings.js?v=3.0.1"></script>
-<script defer src="js/screens/rewards.js?v=3.0.1"></script>
-<script defer src="js/screens/profile.js?v=3.0.1"></script>
-<script defer src="js/screens/achievements.js?v=3.0.1"></script>
-<script defer src="js/screens/promo.js?v=3.0.1"></script>
-<script defer src="js/screens/settings.js?v=3.0.1"></script>
-<script defer src="js/extras/snake.js?v=3.0.1"></script>
-<script defer src="js/extras/fx.js?v=3.0.1"></script>
-<script defer src="js/booking/group.js?v=3.0.1"></script>
-<script defer src="js/admin/offline.js?v=3.0.1"></script>
-<script defer src="js/admin/admin.js?v=3.0.1"></script>
-<script defer src="js/extras/hints.js?v=3.0.1"></script>
-<script defer src="js/core/live.js?v=3.0.1"></script>
-<script defer src="js/main.js?v=3.0.1"></script>
+<script defer src="js/core/guard.js?v=4.0.1"></script>
+<script defer src="js/core/i18n.js?v=4.0.1"></script>
+<script defer src="js/core/config.js?v=4.0.1"></script>
+<script defer src="js/core/clock.js?v=4.0.1"></script>
+<script defer src="js/core/api.js?v=4.0.1"></script>
+<script defer src="js/core/state.js?v=4.0.1"></script>
+<script defer src="js/core/diag.js?v=4.0.1"></script>
+<script defer src="js/core/ui.js?v=4.0.1"></script>
+<script defer src="js/screens/home.js?v=4.0.1"></script>
+<script defer src="js/screens/onboarding.js?v=4.0.1"></script>
+<script defer src="js/booking/time-picker.js?v=4.0.1"></script>
+<script defer src="js/booking/booking.js?v=4.0.1"></script>
+<script defer src="js/core/bookings-api.js?v=4.0.1"></script>
+<script defer src="js/screens/my-bookings.js?v=4.0.1"></script>
+<script defer src="js/screens/rewards.js?v=4.0.1"></script>
+<script defer src="js/screens/profile.js?v=4.0.1"></script>
+<script defer src="js/screens/achievements.js?v=4.0.1"></script>
+<script defer src="js/screens/promo.js?v=4.0.1"></script>
+<script defer src="js/screens/settings.js?v=4.0.1"></script>
+<script defer src="js/extras/snake.js?v=4.0.1"></script>
+<script defer src="js/extras/fx.js?v=4.0.1"></script>
+<script defer src="js/admin/offline.js?v=4.0.1"></script>
+<script defer src="js/admin/admin.js?v=4.0.1"></script>
+<script defer src="js/extras/hints.js?v=4.0.1"></script>
+<script defer src="js/core/live.js?v=4.0.1"></script>
+<script defer src="js/main.js?v=4.0.1"></script>
 </body>
 </html>
