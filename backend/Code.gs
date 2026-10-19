@@ -1,24 +1,25 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║     TOXICSKILL — Google Apps Script Backend v6               ║
+// ║     TOXICSKILL — Google Apps Script Backend v7               ║
 // ║                                                              ║
-// ║  ЧТО НОВОГО В v6:                                            ║
-// ║  • Токены и ключи — в «Свойствах скрипта», в коде их нет     ║
-// ║  • Каждое действие клиента проверяется по подписи Telegram   ║
-// ║    (нельзя отменить чужую бронь, потратить чужие баллы…)     ║
-// ║  • Публичный список броней — без имён и телефонов            ║
-// ║  • Промокоды меняет только админ, Gizmo Bridge — по ключу    ║
-// ║  • Gizmo: сколько осталось у сессии (left / until)           ║
-// ║  • Брони с точностью до минуты, верные пересечения           ║
-// ║    через полночь, Gizmo не блокирует брони на потом          ║
-// ║  • Кэш статуса ПК и броней — быстрее и дешевле по квотам     ║
+// ║  ЧТО НОВОГО В v7:                                            ║
+// ║  • Цена считается на сервере по тарифу (TARIFF ниже):        ║
+// ║    пакеты + «своё время» (за каждые начатые 30 минут)        ║
+// ║  • Строгая проверка брони: ПК из зоны, окна пакетов, прошлое,║
+// ║    лимиты, нельзя занять два ПК на одно время в обход        ║
+// ║  • Бронь для команды: несколько ПК одной операцией —         ║
+// ║    всё или ничего, баллы один раз, отмена всей командой      ║
+// ║  v6: токены — в «Свойствах скрипта», подпись Telegram,       ║
+// ║      Gizmo «сколько осталось», брони до минуты               ║
 // ║                                                              ║
 // ║  ИНСТРУКЦИЯ:                                                 ║
 // ║  1. Замени ВЕСЬ код в Apps Script на этот                    ║
-// ║  2. Project Settings → Script properties → добавь:           ║
+// ║  2. ⚙️ Настройки проекта → Свойства скрипта → добавь:        ║
 // ║     BOT_TOKEN, USER_BOT_TOKEN, ADMIN_KEY, BRIDGE_KEY         ║
 // ║     (или впиши их в setupSecrets() ниже и запусти её)        ║
+// ║     Без токенов не работают админка и уведомления!           ║
 // ║  3. Запусти setupAllSheets() и setupTriggers()               ║
-// ║  4. Deploy → Manage deployments → ✏️ → New version           ║
+// ║  4. Развернуть → Управление развёртываниями → ✏️ →           ║
+// ║     Версия: «Новая версия» → Развернуть                      ║
 // ║  5. Запусти testTelegram() — проверит бота                   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
@@ -44,7 +45,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '6.0'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.0'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -97,7 +98,10 @@ function setupAllSheets() {
   }
 
   ensure(SHEET_PROMOS,   ['code','name','bonus','disc','uses','used','on'])
-  ensure(SHEET_BOOKINGS, ['id','user','phone','pc','zone','date','start','end','pkg','price','status','created','tgId','source'])
+  ensure(SHEET_BOOKINGS, ['id','user','phone','pc','zone','date','start','end','pkg','price','status','created','tgId','source','group'])
+  // v7: колонка «group» (бронь для команды) — добавляем заголовок в старую таблицу
+  var bs = ss.getSheetByName(SHEET_BOOKINGS)
+  if (!String(bs.getRange(1, 15).getValue())) bs.getRange(1, 15).setValue('group').setFontWeight('bold')
   ensure(SHEET_POINTS,   ['timestamp','tgId','user','phone','action','amount','reason','bookingId','balance'])
   ensure(SHEET_REWARDS,  ['voucherId','tgId','user','phone','rewardId','label','hours','zone','cost','createdAt','expiresAt','status','usedAt'])
   ensure(SHEET_GIZMO,    ['pc','zone','busy','online','user','until','updatedAt'])
@@ -303,7 +307,7 @@ function doGet(e) {
   if (a === 'ping')            return json({ ok:true, v:BACKEND_V })
 
   if (a === 'createBooking') return json(createBookingFromParams_(p))
-  if (a === 'cancelBooking') return json(cancelBooking(san(p.id,30), trustedTgId_(p), verifyAdmin(p)))
+  if (a === 'cancelBooking') return json(cancelBooking(san(p.id,30), trustedTgId_(p), verifyAdmin(p), p.all === '1'))
   if (a === 'redeemReward')  return json(redeemReward(san(p.rewardId,10), trustedTgId_(p), san(p.user,60), san(p.phone,20)))
   if (a === 'notify') {
     // 🔒 Анти-спам: не больше 12 уведомлений в минуту суммарно
@@ -316,22 +320,6 @@ function doGet(e) {
   }
 
   return ContentService.createTextOutput('ToxicSkill v' + BACKEND_V + ' OK')
-}
-
-// Общая точка входа для брони (GET и POST)
-function createBookingFromParams_(p) {
-  if (!p.pc||!p.date||!p.start||!p.end) return { ok:false, error:'Заполни все поля' }
-  var isAdminCall = verifyAdmin(p)
-  // 🔐 Оффлайн-брони (без телефона) может создавать только верифицированный админ
-  if (p.source === 'offline' && !isAdminCall) return { ok:false, error:'Доступ запрещён' }
-  var tgId = trustedTgId_(p)
-  return createBooking({
-    user:san(String(p.user||''),60)||'Гость', phone:san(String(p.phone||''),20),
-    pc:san(String(p.pc),20), zone:san(String(p.zone||''),20), date:san(String(p.date),12),
-    start:san(String(p.start),5), end:san(String(p.end),5), pkg:san(String(p.pkg||''),40),
-    price:san(String(p.price||''),10), tgId:tgId, isTg:!!tgId,
-    silent:String(p.silent)==='1', source:san(String(p.source||''),12)
-  })
 }
 
 // ═══════════════════════════════════════════════
@@ -348,7 +336,7 @@ function doPost(e) {
     if (a==='getPromos')     return json(getPromos())
     if (a==='getPoints')     return json(getPoints(trustedTgId_(d)))
     if (a==='createBooking') return json(createBookingFromParams_(d))
-    if (a==='cancelBooking') return json(cancelBooking(san(String(d.id||''),30), trustedTgId_(d), verifyAdmin(d)))
+    if (a==='cancelBooking') return json(cancelBooking(san(String(d.id||''),30), trustedTgId_(d), verifyAdmin(d), String(d.all) === '1'))
     if (a==='redeemReward')  return json(redeemReward(san(String(d.rewardId||''),10), trustedTgId_(d), san(String(d.user||''),60), san(String(d.phone||''),20)))
     if (a==='gizmoSync') {
       if (!bridgeOk_(d)) return json({ ok:false, error:'bridge_key' })
@@ -881,7 +869,8 @@ function readBookings_(includeAll) {
       status: st,
       created: String(r[11]||''),
       tgId: String(r[12]||''),
-      source: String(r[13]||'online')
+      source: String(r[13]||'online'),
+      group: String(r[14]||'')
     })
   }
   return bks
@@ -924,7 +913,7 @@ function getMyBookings(tgId) {
     var mine = readBookings_(true).filter(function(b) {
       return b.tgId === String(tgId) && dayNum_(b.date) >= cutoff
     }).map(function(b) {
-      return { id:b.id, pc:b.pc, zone:b.zone, date:b.date, start:b.start, end:b.end, pkg:b.pkg, price:b.price, status:b.status }
+      return { id:b.id, pc:b.pc, zone:b.zone, date:b.date, start:b.start, end:b.end, pkg:b.pkg, price:b.price, status:b.status, group:b.group }
     })
     return { ok:true, bookings:mine }
   } catch(e) { return { ok:false, bookings:[] } }
@@ -935,242 +924,306 @@ function getBookings(date, zone) { return getBookingsPublic(date, zone) }
 
 function isOfflineSrc(b){ return b && b.source === 'offline' }
 
+// ═══════════════════════════════════════════════
+// 💰 ТАРИФЫ И КОМПЬЮТЕРЫ — цена считается ТОЛЬКО здесь, на сервере
+// (то же самое — в js/core/config.js; меняешь цены — поменяй в обоих местах)
+// ═══════════════════════════════════════════════
+const TARIFF = {
+  std: { hour:6, pre:'ST',  pcs:13, pkgs:[
+    { id:'s0', n:'1 час',   h:1,  p:6  },
+    { id:'s1', n:'3 часа',  h:3,  p:15 },
+    { id:'s2', n:'5 часов', h:5,  p:21 },
+    { id:'s3', n:'Утро',    h:3,  p:15, from:8,  to:11 },
+    { id:'s4', n:'День',    h:6,  p:18, from:11, to:17 },
+    { id:'s5', n:'Ночь',    h:10, p:25, from:22, to:8  } ] },
+  vip: { hour:8, pre:'VIP', pcs:3, pkgs:[
+    { id:'v0', n:'1 час',   h:1,  p:8  },
+    { id:'v1', n:'3 часа',  h:3,  p:20 },
+    { id:'v2', n:'5 часов', h:5,  p:25 },
+    { id:'v3', n:'Утро',    h:3,  p:20, from:8,  to:11 },
+    { id:'v4', n:'День',    h:6,  p:23, from:11, to:17 },
+    { id:'v5', n:'Ночь',    h:10, p:30, from:22, to:8  } ] },
+  bc:  { hour:8, pre:'BC',  pcs:5, pkgs:[
+    { id:'b0', n:'1 час',   h:1,  p:8  },
+    { id:'b1', n:'3 часа',  h:3,  p:20 },
+    { id:'b2', n:'5 часов', h:5,  p:25 },
+    { id:'b3', n:'Утро',    h:3,  p:20, from:8,  to:11 },
+    { id:'b4', n:'День',    h:6,  p:23, from:11, to:17 },
+    { id:'b5', n:'Ночь',    h:10, p:30, from:22, to:8  } ] }
+}
+// Правила брони
+const RULES = {
+  freeMin: 30, freeMax: 720, freeStep: 30, // «своё время»: от 30 мин до 12 ч, шаг 30 мин
+  maxTeam: 8,          // ПК в одной брони для команды
+  daysAhead: 30,       // на сколько дней вперёд можно бронировать
+  pastGraceMin: 30,    // начало можно поставить не раньше чем «сейчас − 30 мин»
+  maxActive: 6,        // активных броней на клиента
+  maxPerDay: 5         // броней на клиента на одну дату
+}
+
+function zoneKey_(z) {
+  z = String(z||'').toLowerCase()
+  if (z === 'bootcamp' || z === 'boot') return 'bc'
+  return TARIFF[z] ? z : ''
+}
+function zoneOfPc_(pc) {
+  var m = /^(ST|VIP|BC)-(\d{2})$/.exec(String(pc||'').trim().toUpperCase())
+  if (!m) return ''
+  for (var k in TARIFF) if (TARIFF[k].pre === m[1]) { var n = +m[2]; return n >= 1 && n <= TARIFF[k].pcs ? k : '' }
+  return ''
+}
+// Цена «своего времени»: каждые начатые 30 мин по часовому тарифу.
+// Лучшая цена: если пакет не короче и дешевле — берём цену пакета.
+function freePrice_(zone, mins) {
+  var t = TARIFF[zone], price = Math.ceil(mins / 30) * t.hour / 2, viaPkg = null
+  t.pkgs.forEach(function(p) { if (p.from === undefined && p.h * 60 >= mins && p.p < price) { price = p.p; viaPkg = p } })
+  return { price: price, viaPkg: viaPkg }
+}
+function durRu_(mins) { var h = Math.floor(mins/60), m = mins % 60; return (h ? h + ' ч' : '') + (h && m ? ' ' : '') + (m ? m + ' мин' : '') }
+function normPhone_(s) {
+  var d = String(s||'').replace(/\D/g, '')
+  if (d.length === 12 && d.indexOf('375') === 0) return '+375 ' + d.substr(3,2) + ' ' + d.substr(5,3) + '-' + d.substr(8,2) + '-' + d.substr(10,2)
+  return ''
+}
+
+// Разобрать и проверить запрос брони (без обращения к таблице)
+function planBooking_(p, pcsList) {
+  var offline = String(p.source||'') === 'offline'
+  var pcs = (pcsList || [p.pc]).map(function(x){ return String(x||'').trim().toUpperCase() }).filter(String)
+  if (!pcs.length) return { ok:false, error:'Выбери компьютер' }
+  var seen = {}
+  for (var i = 0; i < pcs.length; i++) {
+    if (seen[pcs[i]]) return { ok:false, error:'Компьютер выбран дважды: ' + pcs[i] }
+    seen[pcs[i]] = 1
+  }
+  if (pcs.length > RULES.maxTeam) return { ok:false, error:'Максимум ' + RULES.maxTeam + ' ПК в одной брони' }
+  var zone = zoneOfPc_(pcs[0])
+  if (!zone) return { ok:false, error:'Неверный компьютер' }
+  for (var j = 1; j < pcs.length; j++) if (zoneOfPc_(pcs[j]) !== zone) return { ok:false, error:'Все ПК должны быть в одной зоне' }
+  var zIn = zoneKey_(p.zone)
+  if (p.zone && zIn !== zone) return { ok:false, error:'Компьютер не из этой зоны' }
+
+  var date = String(p.date||'').trim(), start = String(p.start||'').trim(), end = String(p.end||'').trim()
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date) || isNaN(dayNum_(date))) return { ok:false, error:'Неверная дата' }
+  var dd = new Date(dayNum_(date) * 86400000) // 31.02 и подобное — не дата
+  if (pad2(dd.getUTCDate()) + '.' + pad2(dd.getUTCMonth() + 1) + '.' + dd.getUTCFullYear() !== date) return { ok:false, error:'Неверная дата' }
+  // Конец «24:00» — для совместимости со старыми версиями приложения
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start) || !/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(end) || start === end) return { ok:false, error:'Неверное время' }
+  if (end === '24:00') end = '00:00'
+  var range = bookingRange_(date, start, end), mins = range[1] - range[0]
+
+  // Пакет: по id, у старых версий приложения — по названию
+  var t = TARIFF[zone], pkg = null, pid = String(p.pkgId||''), pname = String(p.pkg||'').trim()
+  t.pkgs.forEach(function(k) { if (pid ? k.id === pid : (pname && k.n === pname && k.h * 60 === mins)) pkg = k })
+  if (pid && !pkg) return { ok:false, error:'Такого пакета нет в этой зоне' }
+
+  var price, label, nowAbs = nowAbsMin_()
+  if (pkg) {
+    if (mins !== pkg.h * 60) return { ok:false, error:'Пакет «' + pkg.n + '» — ровно ' + durRu_(pkg.h * 60) }
+    if (pkg.from !== undefined) {
+      if (timeToMin(start) !== pkg.from * 60 || timeToMin(end) !== pkg.to * 60) return { ok:false, error:'Пакет «' + pkg.n + '» действует ' + pad2(pkg.from) + ':00–' + pad2(pkg.to) + ':00' }
+      // Пакет с окном можно взять, пока до конца окна больше 30 минут
+      if (range[1] - 30 <= nowAbs) return { ok:false, error:'Пакет «' + pkg.n + '» на сегодня уже закончился' }
+    }
+    price = pkg.p; label = pkg.n
+  } else {
+    if (mins < RULES.freeMin || mins > RULES.freeMax) return { ok:false, error:'Своё время — от ' + durRu_(RULES.freeMin) + ' до ' + durRu_(RULES.freeMax) }
+    if (mins % RULES.freeStep) return { ok:false, error:'Своё время выбирается шагом ' + RULES.freeStep + ' мин' }
+    var fp = freePrice_(zone, mins)
+    price = fp.price; label = 'Своё время ' + durRu_(mins) + (fp.viaPkg ? ' (цена пакета «' + fp.viaPkg.n + '»)' : '')
+  }
+  if (!(pkg && pkg.from !== undefined) && range[0] < nowAbs - RULES.pastGraceMin) return { ok:false, error:'Это время уже прошло — выбери время позже' }
+  if (range[1] <= nowAbs) return { ok:false, error:'Это время уже прошло — выбери время позже' }
+  if (range[0] > nowAbs + RULES.daysAhead * 1440) return { ok:false, error:'Бронь возможна максимум на ' + RULES.daysAhead + ' дней вперёд' }
+
+  var user = san(String(p.user||''), 40)
+  var phone = normPhone_(p.phone)
+  if (!offline) {
+    if (!phone) return { ok:false, error:'Укажи номер телефона в формате +375 XX XXX-XX-XX' }
+    if (user.length < 2) return { ok:false, error:'Укажи имя (минимум 2 буквы)' }
+  }
+  var tgId = String(p.tgId||'')
+  return {
+    ok:true, zone:zone, pcs:pcs, pkg:pkg, label:(offline ? 'Оффлайн · ' : '') + label, mins:mins, price:price,
+    range:range, date:date, start:start, end:end, nowAbs:nowAbs,
+    user:user || (offline ? 'Гость (клуб)' : 'Гость'), phone:phone, tgId:tgId, isTg:!!tgId, offline:offline,
+    source: offline ? 'offline' : (san(String(p.source||''), 12) || 'online')
+  }
+}
+
+// Общая точка входа для брони (GET и POST)
+function createBookingFromParams_(p) {
+  var isAdminCall = verifyAdmin(p)
+  // 🔐 Оффлайн-брони (без телефона) может создавать только верифицированный админ
+  if (p.source === 'offline' && !isAdminCall) return { ok:false, error:'Доступ запрещён' }
+  var q = {}
+  Object.keys(p).forEach(function(k){ q[k] = p[k] })
+  q.tgId = trustedTgId_(p)
+  var list = null
+  if (p.pcs) list = String(p.pcs).split(',')
+  var plan = planBooking_(q, list)
+  if (!plan.ok) return plan
+  plan.silent = String(p.silent) === '1'
+  return createBookings_(plan)
+}
+// Совместимость: вызов изнутри скрипта объектом брони
 function createBooking(b) {
-  if (!b||!b.pc||!b.date||!b.start||!b.end) return { ok:false, error:'Заполни все поля' }
+  var plan = planBooking_(b, b.pcs || null)
+  if (!plan.ok) return plan
+  plan.silent = !!b.silent
+  return createBookings_(plan)
+}
 
-  // 🔒 Строгая валидация формата (защита от подделки запросов)
-  if (!/^(ST|VIP|BC)-\d{2}$/i.test(String(b.pc).trim())) return { ok:false, error:'Неверный компьютер' }
-  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(b.date).trim())) return { ok:false, error:'Неверная дата' }
-  // Конец «24:00» оставлен для совместимости со старыми версиями приложения
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(b.start).trim()) || !/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(String(b.end).trim())) return { ok:false, error:'Неверное время' }
-  if (String(b.start).trim() === String(b.end).trim()) return { ok:false, error:'Неверное время' }
-  var zoneOk = ['std','vip','bootcamp','bc'].indexOf(String(b.zone||'').toLowerCase()) >= 0
-  if (!zoneOk) return { ok:false, error:'Неверная зона' }
-  // Цена не может быть отрицательной или абсурдной
-  var pr = parseFloat(b.price)
-  if (isNaN(pr) || pr < 0 || pr > 500) return { ok:false, error:'Неверная стоимость' }
+// Создать бронь на один или несколько ПК (команда) — всё или ничего, под блокировкой
+function createBookings_(plan) {
+  if (plan.tgId && isBanned(plan.tgId)) return { ok:false, error:'Бронирование недоступно. Обратись к администратору клуба.' }
+  if (!plan.offline && getMaintenance().on) return { ok:false, error:'⚙️ Технические работы — бронирование временно недоступно' }
 
-  var tz = CLUB_TZ
-  var mine = bookingRange_(b.date, b.start, b.end)
-  var nowAbs = nowAbsMin_()
-
-  // 🔒 Бронь не дальше чем на 30 дней вперёд и не в прошлом
-  if (!mine) return { ok:false, error:'Неверная дата' }
-  if (mine[0] > nowAbs + 30*1440) return { ok:false, error:'Бронь возможна максимум на 30 дней вперёд' }
-  if (mine[1] <= nowAbs) return { ok:false, error:'Нельзя бронировать на прошедшее время' }
-
-  // 🔒 Лимит: не больше 6 активных броней на пользователя (антиспам)
-  if (b.tgId && !isOfflineSrc(b)) {
-    try {
-      var allRows = bookSheet().getDataRange().getValues()
-      var active = 0
-      for (var ai = 1; ai < allRows.length; ai++) {
-        if (String(allRows[ai][12]) !== String(b.tgId)) continue
-        if (String(allRows[ai][10]) === 'cancelled' || String(allRows[ai][10]) === 'completed') continue
-        active++
-      }
-      if (active >= 6) return { ok:false, error:'Слишком много активных броней. Отмени лишние или обратись к админу.' }
-    } catch(e) {}
-  }
-
-  // 🔒 Проверяем телефон — обязателен (кроме оффлайн-броней от админа)
-  var phone = String(b.phone||'').trim()
-  var isOffline = b.source === 'offline'
-  if (!isOffline && (!phone || phone.replace(/\D/g,'').length < 12)) return { ok:false, error:'Укажи номер телефона (+375)' }
-
-  // 🚫 Забаненный пользователь не может бронировать
-  if (b.tgId && isBanned(b.tgId)) return { ok:false, error:'Бронирование недоступно. Обратись к администратору клуба.' }
-
-  // 🛠 Техработы — брони закрыты (оффлайн-брони админа работают)
-  if (!isOffline && getMaintenance().on) return { ok:false, error:'⚙️ Технические работы — бронирование временно недоступно' }
-
-  // 🔒 Нельзя начинать в прошлом (запас 30 мин — пришёл и бронируешь «сейчас»).
-  // Ночной пакет (22:00–08:00) можно взять и в 23:00 — как раньше.
-  var isNightBk = timeToMin(b.end) <= timeToMin(b.start)
-  if (!isNightBk && mine[0] < nowAbs - 30) return { ok:false, error:'Нельзя бронировать на прошедшее время' }
-
-  // 🔒 Лимит: максимум 5 активных бронирований на пользователя на одну дату
-  var MAX_BOOKINGS_PER_USER_DAY = 5
-
-  // 🔒 MUTEX — только один запрос на бронирование одновременно
   var lock = LockService.getScriptLock()
-  try {
-    lock.waitLock(15000)
-  } catch(lockErr) {
-    return { ok:false, error:'Сервер занят, попробуй через 5 секунд' }
-  }
-
+  try { lock.waitLock(15000) } catch(lockErr) { return { ok:false, error:'Сервер занят, попробуй через 5 секунд' } }
   try {
     SpreadsheetApp.flush()
-    var sh = bookSheet()
-    var rows = sh.getDataRange().getValues()
-    var myDay = dayNum_(b.date)
+    var sh = bookSheet(), rows = sh.getDataRange().getValues()
+    var mine = plan.range, myDay = dayNum_(plan.date), nowAbs = plan.nowAbs
+    var want = {}; plan.pcs.forEach(function(pc){ want[pc] = 1 })
+    var busy = [], why = {}, curEnd = {}, active = 0, dayGroups = {}, ownClash = null
 
-    // 🔒 Считаем активные брони этого пользователя на эту дату (оффлайн-брони админа не считаем)
-    if (!isOffline) {
-      var userBookCount = 0
-      for (var j = 1; j < rows.length; j++) {
-        var rj = rows[j]
-        if (!String(rj[0]).trim()) continue
-        var rjStatus = String(rj[10]).trim().toLowerCase()
-        if (rjStatus === 'cancelled' || rjStatus === 'completed') continue
-        if (fmtDate(rj[5]) !== String(b.date).trim()) continue
-        if (b.tgId) { if (String(rj[12]).trim() === String(b.tgId).trim()) userBookCount++ }
-        else if (String(rj[1]).trim() === String(b.user||'').trim()) userBookCount++
-      }
-      if (userBookCount >= MAX_BOOKINGS_PER_USER_DAY) {
-        lock.releaseLock()
-        return { ok:false, error:'Максимум ' + MAX_BOOKINGS_PER_USER_DAY + ' бронирований в день' }
-      }
-    }
-
-    // 🔒 Проверяем пересечения на этом ПК (вчера/сегодня/завтра — ночные брони переходят через полночь)
-    var curBkEnd = 0 // конец брони, которая идёт на этом ПК прямо сейчас
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i]
       if (!String(r[0]).trim()) continue
-      var rstatus = String(r[10]).trim().toLowerCase()
-      if (rstatus === 'cancelled' || rstatus === 'completed') continue
-      if (String(r[3]).trim() !== String(b.pc).trim()) continue
-      var rDay = dayNum_(fmtDate(r[5]))
-      if (isNaN(rDay) || Math.abs(rDay - myDay) > 1) continue
-      var their = bookingRange_(fmtDate(r[5]), fmtTime(r[6]), fmtTime(r[7]))
-      if (their && their[0] <= nowAbs && nowAbs < their[1]) curBkEnd = Math.max(curBkEnd, their[1])
-      if (rangesOverlap_(mine, their)) {
-        lock.releaseLock()
-        return {
-          ok: false,
-          conflict: true,
-          error: b.pc + ' уже забронирован на ' + fmtTime(r[6]) + '-' + fmtTime(r[7])
-        }
+      var st = String(r[10]).trim().toLowerCase()
+      if (st === 'cancelled' || st === 'completed') continue
+      var rDate = fmtDate(r[5]), rDay = dayNum_(rDate)
+      var their = bookingRange_(rDate, fmtTime(r[6]), fmtTime(r[7]))
+      var rPc = String(r[3]).trim().toUpperCase()
+      // Брони самого клиента: лимиты и «двойная бронь на одно время»
+      if (plan.tgId && !plan.offline && String(r[12]).trim() === plan.tgId) {
+        if (their && their[1] > nowAbs) active++
+        if (rDate === plan.date) dayGroups[String(r[14]||'') || String(r[0])] = 1
+        if (!ownClash && rangesOverlap_(mine, their)) ownClash = rPc + ' ' + fmtTime(r[6]) + '–' + fmtTime(r[7])
       }
+      if (!want[rPc] || isNaN(rDay) || Math.abs(rDay - myDay) > 1) continue
+      if (their && their[0] <= nowAbs && nowAbs < their[1]) curEnd[rPc] = Math.max(curEnd[rPc] || 0, their[1])
+      if (rangesOverlap_(mine, their) && busy.indexOf(rPc) < 0) { busy.push(rPc); why[rPc] = rPc + ' уже забронирован на ' + fmtTime(r[6]) + '–' + fmtTime(r[7]) }
     }
 
-    // 🖥️ Gizmo: мешает только если бронь пересекается с ИДУЩЕЙ сессией
-    var gz = gizmoHost_(b.pc)
-    if (gz && gz.busy) {
+    var fail = null
+    if (!plan.offline && plan.tgId) {
+      if (active >= RULES.maxActive) fail = { ok:false, error:'Слишком много активных броней. Отмени лишние или обратись к админу.' }
+      else if (Object.keys(dayGroups).length >= RULES.maxPerDay) fail = { ok:false, error:'Максимум ' + RULES.maxPerDay + ' броней в день' }
+      else if (ownClash) fail = { ok:false, conflict:true, own:true, error:'У тебя уже есть бронь на это время: ' + ownClash + '. Несколько ПК сразу — через «Бронь для команды».' }
+    }
+    // 🖥️ Gizmo: мешает только пересечение с ИДУЩЕЙ сессией
+    if (!fail) plan.pcs.forEach(function(pc) {
+      if (busy.indexOf(pc) >= 0) return
+      var gz = gizmoHost_(pc)
+      if (!gz || !gz.busy) return
       // Остаток неизвестен: если сейчас идёт бронь на этот ПК — сессия по ней, иначе берём запас
-      var sessEnd = gz.left !== null ? nowAbs + gz.left : (curBkEnd || nowAbs + GIZMO_UNKNOWN_BUSY_MIN)
-      if (rangesOverlap_(mine, [nowAbs, sessEnd])) {
-        lock.releaseLock()
-        return { ok:false, conflict:true, error:b.pc + ' сейчас занят в клубе' + (gz.left !== null ? ' до ' + absToHm_(sessEnd) : '') }
-      }
+      var sessEnd = gz.left !== null ? nowAbs + gz.left : (curEnd[pc] || nowAbs + GIZMO_UNKNOWN_BUSY_MIN)
+      if (rangesOverlap_(mine, [nowAbs, sessEnd])) { busy.push(pc); why[pc] = pc + ' сейчас занят в клубе' + (gz.left !== null || curEnd[pc] ? ' до ' + absToHm_(sessEnd) : '') }
+    })
+    if (!fail && busy.length) {
+      fail = { ok:false, conflict:true, busy:busy,
+        error: plan.pcs.length > 1 ? 'Уже заняты на это время: ' + busy.join(', ') : why[busy[0]] }
     }
+    if (fail) { lock.releaseLock(); return fail }
 
-    // ✅ Записываем бронь (телефон с апострофом чтоб Sheets не считал формулой)
-    var id = 'BK' + Date.now()
-    var safePhone = phone.charAt(0) === '+' ? "'" + phone : phone
-    sh.appendRow([
-      id, b.user||'Гость', safePhone, b.pc, b.zone||'',
-      b.date, b.start, b.end, b.pkg||'', b.price||'',
-      'confirmed', new Date().toISOString(), b.tgId||'', b.source||'online'
-    ])
-
-    // Принудительно сбрасываем кэш Sheets чтобы следующий запрос видел новую строку
+    // ✅ Записываем все ПК одной операцией (телефон с апострофом — чтобы Sheets не считал формулой)
+    var stamp = Date.now(), team = plan.pcs.length > 1 ? 'GR' + stamp : ''
+    var created = new Date().toISOString(), ids = []
+    var out = plan.pcs.map(function(pc, k) {
+      var id = 'BK' + (stamp + k); ids.push(id)
+      return [id, plan.user, plan.phone ? "'" + plan.phone : '', pc, plan.zone, plan.date, plan.start, plan.end,
+        plan.label, plan.price, 'confirmed', created, plan.tgId || '', plan.source, team]
+    })
+    sh.getRange(sh.getLastRow() + 1, 1, out.length, 15).setValues(out)
     SpreadsheetApp.flush()
     bookingsChanged_()
-
     lock.releaseLock()
 
-    // Для групповых броней (silent) — НЕ начисляем баллы за каждый ПК
-    // и НЕ шлём TG за каждый ПК (групповой флоу шлёт одно сообщение + баллы 1 раз)
-    var pr = null
-    if (b.silent) {
-      return { ok:true, id:id }
-    }
+    var total = plan.price * plan.pcs.length
+    var res = { ok:true, id:ids[0], ids:ids, group:team, price:plan.price, total:total, pkg:plan.label, pcs:plan.pcs }
+    if (plan.silent) return res
 
-    // ⭐ Баллы (после снятия блокировки — не критично)
-    if (b.tgId) pr = awardPoints(b, id)
-
-    var pl = pr&&pr.ok ? '\n⭐ +'+pr.earned+' (='+pr.balance+') · '+pr.tags : (pr&&pr.msg ? '\n⭐ '+pr.msg : '')
-
-    // TG админу
+    // ⭐ Баллы — как за одну бронь, даже если ПК несколько (анти-абуз)
+    var pr = plan.tgId ? awardPoints({ tgId:plan.tgId, user:plan.user, phone:plan.phone, zone:plan.zone, start:plan.start, end:plan.end, isTg:plan.isTg }, team || ids[0]) : null
+    var pl = pr && pr.ok ? '\n⭐ +' + pr.earned + ' (=' + pr.balance + ') · ' + pr.tags : (pr && pr.msg ? '\n⭐ ' + pr.msg : '')
+    var pcsTxt = plan.pcs.join(', ') + (plan.pcs.length > 1 ? ' (команда ×' + plan.pcs.length + ')' : '')
+    var money = plan.pcs.length > 1 ? total + ' BYN (' + plan.pcs.length + '×' + plan.price + ')' : plan.price + ' BYN'
     sendTg(
-      '📅 <b>Бронь!</b>\n' +
-      '👤 <b>' + (b.user||'Гость') + '</b>' + (b.phone ? ' · '+b.phone : '') + '\n' +
-      '🖥 <b>' + b.pc + '</b> (' + (b.zone||'') + ')\n' +
-      '📆 ' + b.date + ' · ' + b.start + '–' + b.end + '\n' +
-      '📦 ' + (b.pkg||'') + ' · ' + (b.price||'') + ' BYN\n' +
-      '🆔 ' + id + pl + '\n#бронь'
+      (plan.offline ? '📞 <b>Оффлайн-бронь</b>\n' : plan.pcs.length > 1 ? '👥 <b>Бронь для команды!</b>\n' : '📅 <b>Бронь!</b>\n') +
+      '👤 <b>' + plan.user + '</b>' + (plan.phone ? ' · ' + plan.phone : '') + '\n' +
+      '🖥 <b>' + pcsTxt + '</b> · ' + plan.zone + '\n' +
+      '📆 ' + plan.date + ' · ' + plan.start + '–' + plan.end + '\n' +
+      '📦 ' + plan.label + ' · ' + money + '\n' +
+      '🆔 ' + (team || ids[0]) + pl + '\n#бронь'
     )
-
-    // 📲 TG клиенту
-    if (b.tgId) {
-      sendTgTyped(b.tgId,
+    if (plan.tgId) {
+      sendTgTyped(plan.tgId,
         '✅ <b>Бронь подтверждена!</b>\n\n' +
-        '🖥 <b>' + b.pc + '</b> (' + (b.zone||'') + ')\n' +
-        '📆 ' + b.date + ' · ' + b.start + '–' + b.end + '\n' +
-        '📦 ' + (b.pkg||'') + ' · ' + (b.price||'') + ' BYN\n\n' +
-        '📍 <b>ToxicSkill</b>\n' +
-        '📞 +375 33 665-66-52\n\n' +
-        '⏰ Приходи вовремя — ждём тебя! 🎮'
+        '🖥 <b>' + pcsTxt + '</b>\n' +
+        '📆 ' + plan.date + ' · ' + plan.start + '–' + plan.end + '\n' +
+        '📦 ' + plan.label + ' · ' + money + '\n\n' +
+        '📍 <b>ToxicSkill</b>\n📞 +375 33 665-66-52\n\n⏰ Приходи вовремя — ждём тебя! 🎮'
       , 'bookings')
     }
-
-    return {
-      ok: true, id: id,
-      points: pr&&pr.ok ? { earned:pr.earned, balance:pr.balance, tags:pr.tags } : null,
-      pointsMsg: pr ? pr.msg||null : null
-    }
+    res.points = pr && pr.ok ? { earned:pr.earned, balance:pr.balance, tags:pr.tags } : null
+    res.pointsMsg = pr ? pr.msg || null : null
+    return res
   } catch(e) {
     try { lock.releaseLock() } catch(le) {}
     return { ok:false, error:e.toString() }
   }
 }
 
-function cancelBooking(id, tgId, adminOk) {
+// Отмена брони. all=true — отменить всю бронь команды (все её ПК)
+function cancelBooking(id, tgId, adminOk, all) {
   if (!id) return { ok:false }
   var lock = LockService.getScriptLock()
   try { lock.waitLock(10000) } catch(e) { return { ok:false, error:'Lock timeout' } }
   try {
-    var sh=bookSheet(), rows=sh.getDataRange().getValues()
-    for (var i=1;i<rows.length;i++) {
-      if (String(rows[i][0])!==String(id)) continue
-      // 🔒 Авторизация отмены:
-      // - бронь с владельцем (tgId) → отменить может ТОЛЬКО владелец (по подписи Telegram) или админ
-      // - оффлайн-бронь (без tgId) → только админ
-      var bookingTgId = String(rows[i][12]||'').trim()
-      var callerTgId = String(tgId||'').trim()
-      var isAdminCaller = !!adminOk  // 🔐 криптографически верифицированный админ
-      if (bookingTgId) {
-        if (callerTgId !== bookingTgId && !isAdminCaller) {
-          lock.releaseLock()
-          return { ok:false, error:'Можно отменить только свою бронь' }
-        }
-      } else {
-        // Оффлайн-бронь — только админ
-        if (!isAdminCaller) {
-          lock.releaseLock()
-          return { ok:false, error:'Эту бронь может снять только администратор' }
-        }
-      }
-      // Проверяем что бронь ещё активна
-      var status = String(rows[i][10]).trim().toLowerCase()
-      if (status === 'cancelled') {
-        lock.releaseLock()
-        return { ok:false, error:'Бронь уже отменена' }
-      }
-      sh.getRange(i+1,11).setValue('cancelled')
-      SpreadsheetApp.flush()
-      bookingsChanged_()
+    var sh = bookSheet(), rows = sh.getDataRange().getValues(), hit = -1
+    for (var i = 1; i < rows.length; i++) if (String(rows[i][0]) === String(id)) { hit = i; break }
+    if (hit < 0) { lock.releaseLock(); return { ok:false, error:'Бронь не найдена' } }
+    // 🔒 Бронь с владельцем отменяет только владелец (по подписи Telegram) или админ; оффлайн-бронь — только админ
+    var owner = String(rows[hit][12]||'').trim(), caller = String(tgId||'').trim(), isAdminCaller = !!adminOk
+    if (owner ? (caller !== owner && !isAdminCaller) : !isAdminCaller) {
       lock.releaseLock()
-      var rev=0
-      if (bookingTgId) { var rv=revokePoints(id,bookingTgId); rev=rv.revoked||0 }
-      sendTg('🗑 <b>Отмена</b>\n🆔 '+id+'\n👤 '+String(rows[i][1])+'\n🖥 '+String(rows[i][3])+(rev?'\n⭐ −'+rev+' баллов':'')+(isAdminCaller&&callerTgId!==bookingTgId?'\n👑 отменил админ':'')+'\n#отмена')
-      // 📲 Уведомляем клиента
-      if (bookingTgId) {
-        sendTgTyped(bookingTgId,
-          '🗑 <b>Бронь отменена</b>\n\n'+
-          '🖥 <b>'+String(rows[i][3])+'</b>\n'+
-          '📆 '+fmtDate(rows[i][5])+' · '+fmtTime(rows[i][6])+'–'+fmtTime(rows[i][7])+'\n\n'+
-          (rev ? '⭐ Списано: '+rev+' баллов\n\n' : '')+
-          'Забронировать снова → toxicskill.cfd'
-        , 'bookings')
-      }
-      return { ok:true, revoked:rev }
+      return { ok:false, error: owner ? 'Можно отменить только свою бронь' : 'Эту бронь может снять только администратор' }
+    }
+    var team = String(rows[hit][14]||'')
+    var targets = [hit]
+    if (all && team) {
+      targets = []
+      for (var j = 1; j < rows.length; j++) if (String(rows[j][14]||'') === team && String(rows[j][12]||'').trim() === owner) targets.push(j)
+    }
+    var done = targets.filter(function(k){ var st = String(rows[k][10]).trim().toLowerCase(); return st !== 'cancelled' && st !== 'completed' })
+    if (!done.length) { lock.releaseLock(); return { ok:false, error:'Бронь уже отменена' } }
+    done.forEach(function(k){ sh.getRange(k+1, 11).setValue('cancelled'); rows[k][10] = 'cancelled' })
+    SpreadsheetApp.flush()
+    bookingsChanged_()
+    // Остались ли живые ПК в брони команды
+    var teamLeft = 0
+    if (team) for (var t = 1; t < rows.length; t++) {
+      if (String(rows[t][14]||'') !== team) continue
+      var s2 = String(rows[t][10]).trim().toLowerCase()
+      if (s2 !== 'cancelled' && s2 !== 'completed') teamLeft++
     }
     lock.releaseLock()
-    return { ok:false, error:'Бронь не найдена' }
+
+    // Баллы за команду начислялись один раз — списываем, только когда отменён последний ПК
+    var rev = 0
+    if (owner && (!team || !teamLeft)) { var rv = revokePoints(team || id, owner); rev = rv.revoked || 0 }
+    var r0 = rows[hit], pcs = done.map(function(k){ return String(rows[k][3]) }).join(', ')
+    sendTg('🗑 <b>Отмена</b>\n🆔 ' + (team && all ? team : id) + '\n👤 ' + String(r0[1]) + '\n🖥 ' + pcs + (rev ? '\n⭐ −' + rev + ' баллов' : '') + (isAdminCaller && caller !== owner ? '\n👑 отменил админ' : '') + '\n#отмена')
+    if (owner) {
+      sendTgTyped(owner,
+        '🗑 <b>Бронь отменена</b>\n\n🖥 <b>' + pcs + '</b>\n' +
+        '📆 ' + fmtDate(r0[5]) + ' · ' + fmtTime(r0[6]) + '–' + fmtTime(r0[7]) + '\n\n' +
+        (rev ? '⭐ Списано: ' + rev + ' баллов\n\n' : '') + 'Забронировать снова → toxicskill.cfd'
+      , 'bookings')
+    }
+    return { ok:true, revoked:rev, cancelled:done.map(function(k){ return String(rows[k][0]) }) }
   } catch(e) { try { lock.releaseLock() } catch(le) {} return { ok:false, error:e.toString() } }
 }
 

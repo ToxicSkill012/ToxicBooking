@@ -9,7 +9,8 @@ function renderBkList(){
   const sub=document.getElementById('bkl-sub')
   const title=document.getElementById('bkl-title')
   if(title)title.innerHTML=D.lang==='en'?'MY<br>BOOKINGS':'МОИ<br>БРОНИ'
-  if(sub)sub.textContent=`${act.length} ${_('activeTab').toLowerCase()} · ${bks.length} ${({ru:'всего',en:'total',zh:'总计'})[D.lang]||'всего'}`
+  const pl=(n,a,b,c)=>{const m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<12||h>14)?b:c}
+  if(sub)sub.textContent=D.lang==='en'?`${act.length} active · ${bks.length} total`:`${act.length} ${pl(act.length,'активная','активные','активных')} · ${bks.length} всего`
   const body=document.getElementById('bkl-body');if(!body)return
   if(!bks.length){
     body.innerHTML=`
@@ -48,14 +49,17 @@ function bkCard(b,past=false){
   const z=ZONES[b.zone==='bootcamp'?'bc':b.zone]||{stripe:'var(--t3)',color:'var(--t2)',emoji:'',name:b.zone,badge:'Bx'}
   const t=past?null:bkTiming(b)
   const stLbl=past?(b.status==='completed'?(D.lang==='en'?'done':'завершена'):_('cancelled')):(t.live?(D.lang==='en'?'● LIVE':'● ИДЁТ'):_('active'))
+  const pcs=b.pcs&&b.pcs.length?b.pcs:String(b.pc||'').split(/,\s*/)
+  const team=pcs.length>1
   return `<div class="BKI fu${past?' past':''}${t&&t.live?' live':''}" data-bk="${b.id}" style="${past?'':'border-color:'+zA(z,.2)}">
     <div style="height:4px;background:${past?'var(--s4)':z.stripe};${past?'':'box-shadow:0 0 12px '+zA(z,.4)}"></div>
     <div class="bki-b">
-      <div class="bki-t"><div class="bki-pc" style="color:${past?'var(--t2)':z.color};${past?'':'text-shadow:0 0 16px '+zA(z,.33)}">${b.pc}</div><span class="B ${past?'Bx':t.live?'Bl':z.badge}">${stLbl}</span></div>
+      <div class="bki-t"><div class="bki-pc" style="color:${past?'var(--t2)':z.color};${past?'':'text-shadow:0 0 16px '+zA(z,.33)}">${team?'👥 ×'+pcs.length:b.pc}</div><span class="B ${past?'Bx':t.live?'Bl':z.badge}">${stLbl}</span></div>
+      ${team?`<div class="bki-pcs">${pcs.map(x=>`<span>${x}</span>`).join('')}</div>`:''}
       <div class="bki-z">${z.emoji} ${z.name} · ${b.pkg||''} · <b style="color:${past?'var(--t2)':z.color}">${b.price} BYN</b></div>
-      <div class="bki-m"><span>📅 ${b.date}</span><span>🕐 ${b.start}–${b.end}</span><span>⏱ ${b.h}h</span></div>
+      <div class="bki-m"><span>📅 ${b.date}</span><span>🕐 ${b.start}–${b.end}</span><span>⏱ ${fmtDur(Math.round((b.h||1)*60))}</span></div>
       ${past?'':`<div class="bki-timer${t.soon?' soon':''}"><span class="bki-tt">${t.txt}</span><div class="bki-bar"><i style="width:${t.pct}%;background:${z.color}"></i></div></div>`}
-      ${!past&&!t.live?`<button class="BTN danger" style="margin-top:13px;width:auto;padding:9px 18px;font-size:13px" onclick="cancelBk('${b.id}')">${_('cancelBk')}</button>`:''}
+      ${!past&&!t.live?`<button class="BTN danger" style="margin-top:13px;width:auto;padding:9px 18px;font-size:13px" onclick="cancelBk('${b.id}')">${team?(D.lang==='en'?'Cancel all PCs':'Отменить всю бронь'):_('cancelBk')}</button>`:''}
     </div>
   </div>`
 }
@@ -82,7 +86,7 @@ function cancelBk(id){
     <div class="MH"></div>
     <div style="text-align:center;font-size:36px;margin-bottom:10px">🗑</div>
     <div class="MT" style="text-align:center">Отменить бронь?</div>
-    <p style="font-size:13px;color:var(--t2);text-align:center;margin:10px 0 18px;line-height:1.6"><b>${bk.pc}</b> · ${bk.date}<br>${bk.start}–${bk.end} · ${bk.price} BYN</p>
+    <p style="font-size:13px;color:var(--t2);text-align:center;margin:10px 0 18px;line-height:1.6"><b>${bk.pc}</b> · ${bk.date}<br>${bk.start}–${bk.end} · ${bk.price} BYN${bk.grp?'<br>👥 '+(D.lang==='en'?'all PCs of the team booking':'отменятся все ПК команды'):''}</p>
     <div style="display:flex;flex-direction:column;gap:10px">
       <button class="BTN danger" id="cc-yes">Да, отменить</button>
       <button class="BTN ghost" id="cc-no">Назад</button>
@@ -98,10 +102,10 @@ function cancelBk(id){
     sv();renderBkList();toast('Бронь отменена','🗑')
     if(String(bk.id).startsWith('BK')){
       try{
-        const r=await fetch(API_URL+'?'+new URLSearchParams({action:'cancelBooking',id:bk.id,tgId:D.user._tgId||'',_t:Date.now()}),{cache:'no-store'})
+        const r=await fetch(API_URL+'?'+new URLSearchParams({action:'cancelBooking',id:bk.id,all:bk.grp?'1':'0',tgId:D.user._tgId||'',_t:Date.now()}),{cache:'no-store'})
         const d=await r.json()
         if(d.ok){
-          _bookingsCache.loaded=false
+          _bookingsCache.loaded=false;_bkData.ts=0
           if(d.revoked>0){
             D.user.pts=Math.max(0,(D.user.pts||0)-d.revoked);sv()
             toast(`−${d.revoked} баллов (отмена)`,'⭐')

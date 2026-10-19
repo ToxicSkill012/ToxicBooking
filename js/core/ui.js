@@ -47,6 +47,8 @@ function go(id){
   document.getElementById(D.cur)?.classList.remove('on')
   document.getElementById(id)?.classList.add('on')
   D.cur=id;buildNav(id)
+  // В процессе брони нижнее меню прячется — как в iOS, оно не закрывает кнопки «Дальше»
+  document.body.classList.toggle('in-flow',id==='book')
   try{logAct('экран: '+id)}catch(e){}
   // Ушли с онбординга — гасим его слайдер (иначе крутится весь сеанс)
   if(id!=='ob'&&_obTimer){clearInterval(_obTimer);_obTimer=null}

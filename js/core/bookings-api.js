@@ -91,7 +91,8 @@ async function loadAdminBookings(all=false){
   return loadBookings(null,null,false)
 }
 
-// 📅 «Мои брони» с сервера: статусы (отменена админом, завершена) и брони с других устройств
+// 📅 «Мои брони» с сервера: статусы (отменена админом, завершена) и брони с других устройств.
+// Бронь для команды — одна карточка на все её ПК (группируем по полю group)
 let _myBkSyncTs=0
 async function syncMyBookings(force=false){
   if(!D.user._tgId||!tgInit())return false
@@ -99,22 +100,26 @@ async function syncMyBookings(force=false){
   _myBkSyncTs=Date.now()
   const d=await apiGetJSON({action:'getMyBookings'})
   if(!d||!d.ok||!Array.isArray(d.bookings))return false
-  const byId=new Map(d.bookings.map(b=>[String(b.id),b]))
-  const map={confirmed:'active',gizmo_synced:'active',offline:'active',cancelled:'cancelled',completed:'completed'}
+  const groups=new Map()
+  d.bookings.forEach(s=>{const k=s.group||String(s.id);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(s)})
+  const live=st=>st==='confirmed'||st==='gizmo_synced'||st==='offline'
+  const statusOf=rows=>rows.some(r=>live(r.status))?'active':rows.every(r=>r.status==='cancelled')?'cancelled':'completed'
   let changed=false
   D.user.bks=(D.user.bks||[]).map(b=>{
-    const s=byId.get(String(b.id))
-    if(!s)return b
-    byId.delete(String(b.id))
-    const st=map[s.status]||b.status
+    const k=b.grp||String(b.id),rows=groups.get(k)
+    if(!rows)return b
+    groups.delete(k)
+    const st=statusOf(rows)
     if(st!==b.status){changed=true;return {...b,status:st}}
     return b
   })
   // Брони, сделанные с другого устройства
-  byId.forEach(s=>{
-    const zone=s.zone==='bootcamp'?'bc':s.zone
+  groups.forEach((rows,k)=>{
+    const s=rows[0],zone=s.zone==='bootcamp'?'bc':s.zone
     const r=bookingAbsRange(s.date,s.start,s.end)||[0,60]
-    D.user.bks.push({id:s.id,zone,pc:s.pc,pkg:s.pkg,date:s.date,start:s.start,end:s.end,h:Math.max(1,Math.round((r[1]-r[0])/60)),price:s.price,status:map[s.status]||'active'})
+    const pcs=rows.map(x=>x.pc)
+    D.user.bks.push({id:s.id,ids:rows.map(x=>x.id),grp:s.group||'',zone,pc:pcs.join(', '),pcs,team:pcs.length,pkg:s.pkg,date:s.date,start:s.start,end:s.end,
+      h:Math.round((r[1]-r[0])/6)/10,price:rows.reduce((a,x)=>a+(parseFloat(x.price)||0),0),status:statusOf(rows)})
     changed=true
   })
   if(changed){
@@ -138,22 +143,6 @@ function expireLocalBookings(){
   return changed
 }
 
-// Получить занятые слоты для компа на дату
-async function getOccupiedSlots(pc, date){
-  const bookings = await loadBookings(date, null)
-  return bookings
-    .filter(b=>b.pc===pc && b.date===date)
-    .map(b=>({start:b.start, end:b.end, user:b.user}))
-}
-
-// Проверить конфликт локально (быстрая проверка без сети)
-function hasConflict(bookings, pc, date, startH, endH){
-  return bookings.some(b=>{
-    if(b.pc!==pc||b.date!==date) return false
-    const bs=timeToMinJS(b.start), be=timeToMinJS(b.end)
-    return startH*60 < be && endH*60 > bs
-  })
-}
 // Форматирование даты в dd.MM.yyyy (совпадает с сервером)
 function fmtDateJS(d){
   if(!d)d=new Date()

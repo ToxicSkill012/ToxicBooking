@@ -65,3 +65,8 @@ function fmtAbs(abs){
   if(diff===1)return (D.lang==='en'?'tomorrow ':'завтра ')+hm
   return dateOfDayNum(day).slice(0,5)+' '+hm
 }
+
+// Сегодня по времени клуба в формате поля <input type="date">
+function clubIsoDate(){const p=clubNow().date.split('.');return p[2]+'-'+p[1]+'-'+p[0]}
+// yyyy-mm-dd → dd.MM.yyyy
+function isoToRuDate(iso){const p=String(iso||'').split('-');return p.length===3?p[2]+'.'+p[1]+'.'+p[0]:''}
