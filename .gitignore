@@ -1,0 +1,6 @@
+bridge/bridge.config.json
+bridge/bridge.log
+bridge/bridge.log.old
+bridge/probe.txt
+.DS_Store
+node_modules/
