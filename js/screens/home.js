@@ -8,7 +8,7 @@ function doLogin(btn){
   const delay=btn?1100:0
   setTimeout(()=>{
     go('home');updateGr();renderProfile();buildNav('home')
-    if(!D.user.reg)setTimeout(()=>openM('reg-m'),900)
+    if(!D.user.reg)setTimeout(()=>openRegModal(),900)
     else{
       // Существующим пользователям подсказки не показываем
       if(D.user._hintsSeen===undefined){D.user._hintsSeen=true;sv()}

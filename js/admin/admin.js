@@ -14,6 +14,7 @@ async function adminRunDiag(){
     clearTimeout(tmr)
     const d=await r.json()
     adminSetupCard(d)
+    adminBridgeCard(d)
     if(d&&d.v){
       if(d.access){
         el.innerHTML=`<span>🟢</span><span style="color:var(--lime)">Бэкенд v${d.v} · бот ${d.bot||'?'} · доступ ОК (${d.why==='key'?'по 🔑 ключу':'Telegram-подпись'})</span>`
@@ -62,6 +63,43 @@ function adminSetupCard(d){
     <button type="button" class="BTN ghost" style="margin-top:8px" onclick="adminRunDiag()">🔄 Проверить снова</button>`
 }
 
+// 🖥️ Мост Gizmo: онлайн ли, когда последний раз прислал данные, не стучится ли без ключа.
+// Без моста занятость ПК в клубе в приложении не видна — только брони.
+function adminBridgeCard(d){
+  const box=document.getElementById('adm-bridge');if(!box)return
+  const g=d&&d.gizmo;if(!g){box.innerHTML='';return}
+  const upd=g.updatedAt?new Date(g.updatedAt):null
+  const age=upd?Math.round((Date.now()-upd.getTime())/60000):null
+  const fresh=age!==null&&age<=(g.staleMin||5)
+  const when=upd?minToHM(Math.floor((upd.getTime()+CLUB_TZ_OFFSET*60000)/60000)%1440):''
+  const rej=g.rejected,rejAge=rej?Math.round((Date.now()-new Date(rej.at).getTime())/60000):null
+  const url=d.bridgeKey?`${API_URL}?action=gizmoSync&key=${d.bridgeKey}&hosts=`:''
+  let html
+  if(fresh){
+    html=`<div class="br-h ok"><span class="br-dot"></span>Мост Gizmo онлайн</div>
+      <div class="br-t">Обновлено ${age<1?'только что':age+' мин назад'} · занято ${g.busy} из ${g.hosts} ПК. Клиенты видят занятость из клуба.</div>`
+  }else{
+    html=`<div class="br-h bad"><span class="br-dot"></span>${upd?`Мост Gizmo молчит с ${when}${age>=60?` (${fmtDur(age)})`:''}`:'Мост Gizmo ещё ни разу не присылал данные'}</div>
+      <div class="br-t">Пока мост не на связи, в приложении видны только брони — ПК, за которыми сидят без брони, выглядят свободными.</div>`
+    if(rej&&rejAge!==null&&rejAge<360){
+      html+=`<div class="br-warn">⚠️ Мост стучится, но сервер его не пускает: ${rej.hadKey?'у него <b>неверный ключ</b>':'у него <b>нет ключа</b>'} (последний раз ${rejAge<1?'только что':rejAge+' мин назад'}).
+        Добавь к адресу моста <code>&key=…</code> — готовый адрес ниже.</div>`
+    }else{
+      html+=`<div class="br-t">Проверь, что ПК с Gizmo включён и мост запущен (папка <code>bridge</code>, <code>start-bridge.cmd</code>).</div>`
+    }
+  }
+  if(url)html+=`<div class="br-url"><code id="br-url">${url}ST-01:1:45,ST-02:0</code><button type="button" class="tp-chip" onclick="copyBridgeUrl()">📋 Копировать</button></div>
+    <div class="br-t sm">Формат: <code>ПК:занят[:минут осталось]</code> через запятую. Для моста из папки <code>bridge</code> ключ вписывается в <code>bridge.config.json</code> → <code>bridgeKey</code>.</div>`
+  box.innerHTML=html
+  box.className='bridge '+(fresh?'ok':'bad')
+  box.style.display='block'
+}
+function copyBridgeUrl(){
+  const t=document.getElementById('br-url')?.textContent||''
+  const done=()=>toast('Адрес скопирован','📋')
+  try{navigator.clipboard.writeText(t).then(done,()=>{prompt('Скопируй адрес:',t)})}catch(e){prompt('Скопируй адрес:',t)}
+}
+
 // ── АДМИН: РЕЗЕРВНЫЙ КЛЮЧ ──
 function adminSaveKey(){
   const v=document.getElementById('adm-key')?.value.trim()||''
@@ -70,28 +108,63 @@ function adminSaveKey(){
 }
 
 // ── ТЕХРАБОТЫ: проверка и управление ──
-let _maintOn=false
+let _maintOn=false,_maintData={},_maintPoll=null
 async function checkMaintenance(){
   try{
     const r=await fetch(API_URL+'?'+new URLSearchParams({action:'getMaint',tgId:D.user._tgId||'',_t:Date.now()}),{cache:'no-store'})
     const d=await r.json()
-    // 🚫 Бан — показываем экран блокировки (даже админа баним честно, но админ обычно не банит себя)
+    // 🚫 Бан — показываем экран блокировки
     const banOv=document.getElementById('ban-overlay')
     if(d.banned&&!isAdmin()){
       if(banOv)banOv.style.display='flex'
       return
     }else if(banOv){banOv.style.display='none'}
-    _maintOn=!!d.on
-    applyMaintUI(d.msg||'')
+    _maintOn=!!d.on;_maintData=d
+    applyMaintUI()
   }catch(e){}
 }
-function applyMaintUI(msg){
+// «Вернёмся к 18:30»: сколько осталось и полоска от начала работ
+function maintEta(){
+  const box=document.getElementById('maint-eta'),ind=document.getElementById('maint-indet')
+  const eta=_maintData.eta||''
+  if(!box)return
+  if(!/^\d{2}:\d{2}$/.test(eta)){box.hidden=true;if(ind)ind.hidden=false;return}
+  const now=clubNow().abs
+  const since=_maintData.since?Math.floor((Date.parse(_maintData.since)+CLUB_TZ_OFFSET*60000)/60000):now
+  let end=clubNow().day*1440+timeToMinJS(eta)
+  if(end<since-5)end+=1440
+  const left=end-now
+  box.hidden=false;if(ind)ind.hidden=true
+  document.getElementById('maint-eta-v').textContent=(D.lang==='en'?'by ':'к ')+eta
+  document.getElementById('maint-eta-s').textContent=left>0?(D.lang==='en'?'in ':'через ')+fmtDur(left):(D.lang==='en'?'any minute now…':'вот-вот закончим…')
+  const pct=end>since?Math.min(100,Math.max(4,(now-since)/(end-since)*100)):100
+  document.getElementById('maint-bar').style.width=pct+'%'
+}
+function applyMaintUI(){
   const ov=document.getElementById('maint-overlay')
   // Клиенты видят экран, админ — работает дальше (с бейджем в панели)
-  if(ov)ov.style.display=(_maintOn&&!isAdmin())?'flex':'none'
-  if(_maintOn&&msg){const m=document.getElementById('maint-msg');if(m)m.innerHTML=msg.replace(/</g,'&lt;')}
+  const show=_maintOn&&!isAdmin()
+  if(ov){
+    const shown=ov.style.display==='flex'
+    if(show){
+      const m=document.getElementById('maint-msg')
+      if(m&&_maintData.msg)m.textContent=_maintData.msg
+      maintEta()
+      ov.style.display='flex'
+      // Пока идут работы — сами проверяем каждые 30 с и открываемся, когда закончат
+      if(!_maintPoll)_maintPoll=setInterval(()=>{if(!document.hidden)checkMaintenance()},30000)
+    }else{
+      if(_maintPoll){clearInterval(_maintPoll);_maintPoll=null}
+      if(shown){
+        ov.classList.add('mt-out')
+        setTimeout(()=>{ov.style.display='none';ov.classList.remove('mt-out')},480)
+        toast(D.lang==='en'?'We are back! 🎉':'Мы снова работаем! 🎉','🎮');haptic('ok')
+      }else ov.style.display='none'
+    }
+  }
   const st=document.getElementById('adm-maint-st'),btn=document.getElementById('adm-maint-btn')
   if(st){st.textContent=_maintOn?'🔴 ВКЛЮЧЕНЫ':'Выключены';st.className='B '+(_maintOn?'Bx':'Bl')}
+  const et=document.getElementById('adm-maint-eta');if(et&&_maintOn&&_maintData.eta)et.value=_maintData.eta
   if(btn){
     btn.innerHTML=_maintOn?'✅ Выключить техработы':'⚙️ Включить техработы'
     btn.style.background=_maintOn?'linear-gradient(135deg,var(--lime),var(--cyan))':'linear-gradient(135deg,var(--red),#ff7b4d)'
@@ -100,16 +173,17 @@ function applyMaintUI(msg){
 }
 async function adminMaintToggle(){
   const msg=document.getElementById('adm-maint-msg')?.value.trim()||''
+  const eta=document.getElementById('adm-maint-eta')?.value||''
   const btn=document.getElementById('adm-maint-btn')
   if(btn){btn.innerHTML='<span class="spin"></span>';btn.disabled=true}
   try{
-    const r=await fetch(API_URL+'?'+new URLSearchParams({action:'adminMaint',on:_maintOn?'0':'1',msg:encodeURIComponent(msg),initData:_admInit(),adminKey:(D._admKey||''),_t:Date.now()}),{cache:'no-store'})
+    const r=await fetch(API_URL+'?'+new URLSearchParams({action:'adminMaint',on:_maintOn?'0':'1',msg:encodeURIComponent(msg),eta,initData:_admInit(),adminKey:(D._admKey||''),_t:Date.now()}),{cache:'no-store'})
     const d=await r.json()
-    if(d.ok){_maintOn=!!d.on;toast(_maintOn?'⚙️ Техработы ВКЛЮЧЕНЫ':'✅ Техработы выключены',_maintOn?'⚙️':'✅')}
+    if(d.ok){_maintOn=!!d.on;_maintData=d;toast(_maintOn?'⚙️ Техработы ВКЛЮЧЕНЫ':'✅ Техработы выключены',_maintOn?'⚙️':'✅')}
     else toast(d.error||'Ошибка','⚠️')
   }catch(e){toast('Нет связи','⚠️')}
   if(btn)btn.disabled=false
-  applyMaintUI(msg)
+  applyMaintUI()
 }
 
 // ── АДМИН: БРОНИ СЕГОДНЯ// ── АДМИН: БРОНИ СЕГОДНЯ (управление залом) ──

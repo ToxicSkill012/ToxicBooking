@@ -21,8 +21,8 @@
 <meta name="referrer" content="no-referrer"/>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=4.0.1">
-<link rel="stylesheet" href="css/glass.css?v=4.0.1">
+<link rel="stylesheet" href="css/app.css?v=4.1.0">
+<link rel="stylesheet" href="css/glass.css?v=4.1.0">
 <script>
 // До загрузки стилей: «лёгкий режим» и класс мощности устройства — без вспышки тяжёлых эффектов
 (function(){var h=document.documentElement;try{if(localStorage.getItem('ts_lowfx')==='1')h.classList.add('pre-lowfx')}catch(e){}
@@ -52,22 +52,25 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 </div>
 
 <!-- ════ ЭКРАН ТЕХРАБОТ ════ -->
-<div id="maint-overlay" style="position:absolute;inset:0;z-index:700;display:none;background:#06060f;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;overflow:hidden">
-  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(196,255,62,.09),transparent 60%),radial-gradient(ellipse 60% 50% at 50% 100%,rgba(75,158,255,.08),transparent 60%);pointer-events:none"></div>
-  <div class="mp" style="left:14%;top:22%;background:var(--lime);animation-delay:0s"></div>
-  <div class="mp" style="left:82%;top:18%;background:var(--cyan);animation-delay:1.3s"></div>
-  <div class="mp" style="left:74%;top:68%;background:var(--lime);animation-delay:2.6s"></div>
-  <div class="mp" style="left:18%;top:74%;background:var(--blue);animation-delay:.7s"></div>
-  <div class="mp" style="left:48%;top:12%;background:var(--gold);animation-delay:2s"></div>
-
-  <div style="font-family:var(--F);font-size:46px;font-weight:800;letter-spacing:-2px;line-height:.9;position:relative">TOXIC<em style="color:var(--lime);font-style:normal;display:block;text-shadow:0 0 50px rgba(196,255,62,.45)">SKILL</em></div>
-
-  <div class="duckwrap" style="position:relative;width:238px;height:202px;margin:18px 0 14px;display:flex;align-items:center;justify-content:center">
-    <div style="position:absolute;bottom:6px;width:158px;height:158px;border-radius:50%;background:radial-gradient(circle,rgba(196,255,62,.16),transparent 66%);animation:glow-pulse 2.8s ease-in-out infinite;pointer-events:none"></div>
-    <div class="spark" style="left:190px;top:124px;animation-delay:.15s"></div>
+<div id="maint-overlay" class="mt" style="display:none" role="alertdialog" aria-labelledby="mt-title">
+  <div class="mt-bg" aria-hidden="true"><i class="mt-b1"></i><i class="mt-b2"></i><i class="mt-b3"></i></div>
+  <div class="mt-grid" aria-hidden="true"></div>
+  <div class="mt-in">
+    <div class="mt-pill"><span class="mt-dot"></span>ТЕХНИЧЕСКИЕ РАБОТЫ</div>
+    <div class="mt-hero" aria-hidden="true">
+      <svg class="mt-rings" viewBox="0 0 260 260">
+        <defs><linearGradient id="mtRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4ff3e"/><stop offset="1" stop-color="#2aedb5"/></linearGradient></defs>
+        <circle class="mt-r1" cx="130" cy="130" r="122" fill="none" stroke="url(#mtRing)" stroke-width="2" stroke-dasharray="2 10" stroke-linecap="round"/>
+        <g class="mt-r2"><circle cx="130" cy="130" r="104" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="10"/>
+          <circle cx="130" cy="130" r="104" fill="none" stroke="url(#mtRing)" stroke-width="4" stroke-linecap="round" stroke-dasharray="120 534"/></g>
+        <g class="mt-r3"><circle cx="130" cy="20" r="6" fill="#2aedb5"/><circle cx="130" cy="240" r="4" fill="#c4ff3e"/></g>
+      </svg>
+      <div class="mt-glass"></div>
+      <div class="mt-duck"><div class="duckwrap">
+        <div class="spark" style="left:190px;top:124px;animation-delay:.15s"></div>
     <div class="spark" style="left:200px;top:132px;animation-delay:.6s"></div>
     <div class="spark" style="left:192px;top:141px;animation-delay:1.05s"></div>
-    <svg viewBox="0 0 240 200" width="238" height="198" style="position:relative;overflow:visible">
+        <svg viewBox="0 0 240 200" width="238" height="198" style="position:relative;overflow:visible">
       <defs>
         <linearGradient id="dkBody" x1="0.25" y1="0" x2="0.75" y2="1">
           <stop offset="0" stop-color="#FFE873"/><stop offset="0.55" stop-color="#FFD22E"/><stop offset="1" stop-color="#F0B408"/>
@@ -151,15 +154,27 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
         </g>
       </g>
     </svg>
+        </div>
+      </div>
+    </div>
+    <h1 class="mt-t" id="mt-title">Прокачиваем <em>клуб</em></h1>
+    <div class="mt-card">
+      <div class="mt-msg" id="maint-msg">Наш инженер уже всё чинит 🔧 Скоро вернёмся — ещё лучше!</div>
+      <div class="mt-eta" id="maint-eta" hidden>
+        <div class="mt-eta-row"><span>Вернёмся примерно</span><b id="maint-eta-v">к 18:00</b></div>
+        <div class="mt-bar"><i id="maint-bar"></i></div>
+        <div class="mt-eta-s" id="maint-eta-s"></div>
+      </div>
+      <div class="mt-prog" id="maint-indet"><i></i></div>
+    </div>
+    <div class="mt-ok">✅ Твои брони в силе — ждём тебя в назначенное время</div>
+    <div class="mt-act">
+      <a class="mt-btn" href="tel:+375336656652">📞 Позвонить</a>
+      <a class="mt-btn" href="https://t.me/toxicskill_brest" target="_blank" rel="noopener">✈️ Telegram</a>
+    </div>
+    <div class="mt-chk"><span class="mt-spin"></span><span id="maint-chk">Проверяем каждые 30 секунд — приложение откроется само</span></div>
   </div>
-
-  <div style="font-family:var(--F);font-size:23px;font-weight:800;background:linear-gradient(120deg,#fff 30%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;position:relative">Технические работы</div>
-  <div id="maint-msg" style="font-size:13px;color:var(--t2);line-height:1.7;max-width:280px;position:relative">Наш инженер уже всё чинит 🔧<br>Скоро вернёмся — ещё лучше!</div>
-
-  <div style="width:170px;height:4px;border-radius:3px;margin-top:26px;background:var(--s3);overflow:hidden;position:relative"><div style="position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--lime),var(--cyan),transparent);animation:maintBar 1.8s ease-in-out infinite;box-shadow:0 0 12px rgba(196,255,62,.4)"></div></div>
-  <div style="font-family:var(--m);font-size:9px;color:var(--t3);letter-spacing:2px;margin-top:9px">ЧИНИМ…</div>
-
-  <div style="position:absolute;bottom:max(env(safe-area-inset-bottom,0px),28px);font-family:var(--m);font-size:10px;color:var(--t3);letter-spacing:2px">@TOXICSKILL_BREST</div>
+  <div class="mt-foot">@TOXICSKILL_BREST</div>
 </div>
 <!-- ════ ПОДСКАЗКИ ДЛЯ НОВИЧКОВ ════ -->
 <div id="hints-overlay" style="position:absolute;inset:0;z-index:500;display:none;pointer-events:auto">
@@ -260,7 +275,8 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
       <div style="flex-shrink:0;width:26px;height:26px;border-radius:8px;background:rgba(75,158,255,.12);display:flex;align-items:center;justify-content:center;color:var(--blue);font-size:15px;position:relative;z-index:1">›</div>
     </div>
     
-    <div style="padding:0 20px"><div class="SL fu" style="animation-delay:.07s" data-i="selectZone">Выбери зону</div></div>
+    <div class="fu" style="padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;animation-delay:.07s"><div class="SL" data-i="selectZone">Выбери зону</div>
+      <div class="zleg" aria-label="Обозначения"><span><i></i>свободен</span><span><i class="soon"></i>скоро</span><span><i class="busy"></i>занят</span></div></div>
     <div class="zones" data-tour="zones">
       <div class="ZC std fu" onclick="openZone('std')" style="animation-delay:.09s">
         <div class="ZG"></div>
@@ -313,19 +329,18 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- ════ SUCCESS ════ -->
 <div id="ok" class="sc">
-  <canvas id="confetti-cv" style="position:absolute;inset:0;pointer-events:none;z-index:10"></canvas>
-  <div class="ok-w" style="position:relative;z-index:11;padding-bottom:20px">
-    <div style="font-size:68px;margin-bottom:8px;filter:drop-shadow(0 0 28px rgba(196,255,62,.5));animation:okPop .5s var(--e) both">🎮</div>
-    <div style="font-family:var(--F);font-size:44px;font-weight:800;letter-spacing:-2px;color:var(--lime);margin-bottom:4px;animation:okPop .5s .08s var(--e) both">ГОТОВО!</div>
-    <p style="color:var(--t2);margin-bottom:3px;font-size:12px;animation:okPop .5s .1s var(--e) both">Бронирование подтверждено ✓</p>
-    <p id="ok-wish" style="color:var(--lime);font-size:14px;font-weight:700;margin-bottom:16px;animation:okPop .5s .14s var(--e) both">Приятной игры! 🎯</p>
-    <div id="ok-card" class="CRD" style="text-align:left;margin-bottom:10px;animation:okPop .5s .18s var(--e) both"></div>
-    <div style="background:rgba(255,63,96,.05);border:1px solid rgba(255,63,96,.12);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--t2);line-height:1.6;animation:okPop .5s .22s var(--e) both">
-      ℹ️ Отменить можно в <b style="color:var(--txt)">«Мои брони»</b> за 30 мин до начала
-    </div>
-    <div style="animation:okPop .5s .26s var(--e) both;display:flex;flex-direction:column;gap:8px">
-      <button class="BTN" onclick="go('home')">На главную</button>
-      <button class="BTN ghost" onclick="go('bklist')">Мои брони</button>
+  <canvas id="confetti-cv" class="ok-cv" aria-hidden="true"></canvas>
+  <div class="sB ok-sb">
+    <div class="ok-w">
+      <div class="ok-badge" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M15 27l7 7 15-16"/></svg></div>
+      <div class="ok-t">Готово!</div>
+      <p class="ok-sub">Бронь подтверждена · <span id="ok-wish">Приятной игры! 🎯</span></p>
+      <div id="ok-card" class="tk"></div>
+      <div class="ok-note">ℹ️ Отменить можно в <b>«Мои брони»</b> до начала · напомним в Telegram за 30 минут</div>
+      <div class="ok-btns">
+        <button class="BTN" onclick="go('home')">На главную</button>
+        <button class="BTN ghost" onclick="go('bklist')">Мои брони</button>
+      </div>
     </div>
   </div>
 </div>
@@ -581,6 +596,7 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
       <span class="spin" style="width:11px;height:11px"></span><span>Проверяю связь с бэкендом…</span>
     </div>
     <div id="adm-setup" class="setup" style="display:none"></div>
+    <div id="adm-bridge" class="bridge" style="display:none"></div>
 
     <div class="SL" style="margin-top:14px">Статистика</div>
     <div id="admin-dash" style="margin-bottom:8px">
@@ -618,7 +634,8 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
         <span style="font-size:12px;color:var(--t2)">Статус</span>
         <span class="B Bl" id="adm-maint-st">Выключены</span>
       </div>
-      <input id="adm-maint-msg" class="INP" maxlength="200" placeholder="Сообщение (например: вернёмся к 18:00)" style="margin-bottom:8px">
+      <input id="adm-maint-msg" class="INP" maxlength="200" placeholder="Сообщение для клиентов (например: меняем сеть)" style="margin-bottom:8px">
+      <label class="tf-row" style="margin-bottom:8px"><span>⏰ Вернёмся к (необязательно)</span><input id="adm-maint-eta" type="time" class="INP" style="width:auto;padding:8px 10px"></label>
       <button class="BTN" id="adm-maint-btn" onclick="adminMaintToggle()" style="background:linear-gradient(135deg,var(--red),#ff7b4d);color:#fff;font-weight:800">⚙️ Включить техработы</button>
       <div style="font-size:10px;color:var(--t3);margin-top:8px;text-align:center">У всех клиентов появится экран «Технические работы», брони закроются</div>
     </div>
@@ -1123,17 +1140,18 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div class="MH"></div>
     <div style="text-align:center;padding:2px 0 16px">
       <div class="wn-badge-ico"><span>✨</span></div>
-      <div class="wn-ver">ОБНОВЛЕНИЕ v4.0</div>
+      <div class="wn-ver">ОБНОВЛЕНИЕ v4.1</div>
       <div class="wn-title">Что нового</div>
       <div style="font-size:12px;color:var(--t2);margin-top:5px">Своё время, бронь для команды и новая лента</div>
     </div>
 
     <div class="wn-list">
+      <div class="wn-item lime"><div class="wn-ic">🟢</div><div><b>Занятость в реальном времени</b><span>На карточках зон — каждый ПК огоньком: свободен, скоро бронь или занят прямо сейчас</span></div></div>
       <div class="wn-item lime"><div class="wn-ic">⏱</div><div><b>Своё время</b><span>Не только пакеты: играй сколько нужно — от 30 минут до 12 часов. Если пакет выгоднее — подскажем</span></div></div>
       <div class="wn-item blue"><div class="wn-ic">👥</div><div><b>Бронь для команды</b><span>До 8 ПК рядом одной бронью: выбери число игроков — места подберутся сами</span></div></div>
       <div class="wn-item gold"><div class="wn-ic">🎚</div><div><b>Новая лента времени</b><span>Листай пальцем с инерцией, жми на нужную минуту — сразу видно, где мало свободных ПК</span></div></div>
       <div class="wn-item pink"><div class="wn-ic">✅</div><div><b>Только свободные ПК</b><span>Сначала выбираешь время — потом показываем компьютеры, которые свободны именно тогда</span></div></div>
-      <div class="wn-item"><div class="wn-ic">🛡</div><div><b>Честная цена</b><span>Стоимость считает сервер клуба — в приложении и на кассе одна и та же сумма</span></div></div>
+      <div class="wn-item"><div class="wn-ic">🎟</div><div><b>Бронь-билет</b><span>После брони — красивый билет с временем, ПК и суммой: покажи его на кассе</span></div></div>
     </div>
 
     <div class="wn-fb">
@@ -1197,31 +1215,31 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- Toast -->
 <div id="toast"></div>
-<script defer src="js/core/guard.js?v=4.0.1"></script>
-<script defer src="js/core/i18n.js?v=4.0.1"></script>
-<script defer src="js/core/config.js?v=4.0.1"></script>
-<script defer src="js/core/clock.js?v=4.0.1"></script>
-<script defer src="js/core/api.js?v=4.0.1"></script>
-<script defer src="js/core/state.js?v=4.0.1"></script>
-<script defer src="js/core/diag.js?v=4.0.1"></script>
-<script defer src="js/core/ui.js?v=4.0.1"></script>
-<script defer src="js/screens/home.js?v=4.0.1"></script>
-<script defer src="js/screens/onboarding.js?v=4.0.1"></script>
-<script defer src="js/booking/time-picker.js?v=4.0.1"></script>
-<script defer src="js/booking/booking.js?v=4.0.1"></script>
-<script defer src="js/core/bookings-api.js?v=4.0.1"></script>
-<script defer src="js/screens/my-bookings.js?v=4.0.1"></script>
-<script defer src="js/screens/rewards.js?v=4.0.1"></script>
-<script defer src="js/screens/profile.js?v=4.0.1"></script>
-<script defer src="js/screens/achievements.js?v=4.0.1"></script>
-<script defer src="js/screens/promo.js?v=4.0.1"></script>
-<script defer src="js/screens/settings.js?v=4.0.1"></script>
-<script defer src="js/extras/snake.js?v=4.0.1"></script>
-<script defer src="js/extras/fx.js?v=4.0.1"></script>
-<script defer src="js/admin/offline.js?v=4.0.1"></script>
-<script defer src="js/admin/admin.js?v=4.0.1"></script>
-<script defer src="js/extras/hints.js?v=4.0.1"></script>
-<script defer src="js/core/live.js?v=4.0.1"></script>
-<script defer src="js/main.js?v=4.0.1"></script>
+<script defer src="js/core/guard.js?v=4.1.0"></script>
+<script defer src="js/core/i18n.js?v=4.1.0"></script>
+<script defer src="js/core/config.js?v=4.1.0"></script>
+<script defer src="js/core/clock.js?v=4.1.0"></script>
+<script defer src="js/core/api.js?v=4.1.0"></script>
+<script defer src="js/core/state.js?v=4.1.0"></script>
+<script defer src="js/core/diag.js?v=4.1.0"></script>
+<script defer src="js/core/ui.js?v=4.1.0"></script>
+<script defer src="js/screens/home.js?v=4.1.0"></script>
+<script defer src="js/screens/onboarding.js?v=4.1.0"></script>
+<script defer src="js/booking/time-picker.js?v=4.1.0"></script>
+<script defer src="js/booking/booking.js?v=4.1.0"></script>
+<script defer src="js/core/bookings-api.js?v=4.1.0"></script>
+<script defer src="js/screens/my-bookings.js?v=4.1.0"></script>
+<script defer src="js/screens/rewards.js?v=4.1.0"></script>
+<script defer src="js/screens/profile.js?v=4.1.0"></script>
+<script defer src="js/screens/achievements.js?v=4.1.0"></script>
+<script defer src="js/screens/promo.js?v=4.1.0"></script>
+<script defer src="js/screens/settings.js?v=4.1.0"></script>
+<script defer src="js/extras/snake.js?v=4.1.0"></script>
+<script defer src="js/extras/fx.js?v=4.1.0"></script>
+<script defer src="js/admin/offline.js?v=4.1.0"></script>
+<script defer src="js/admin/admin.js?v=4.1.0"></script>
+<script defer src="js/extras/hints.js?v=4.1.0"></script>
+<script defer src="js/core/live.js?v=4.1.0"></script>
+<script defer src="js/main.js?v=4.1.0"></script>
 </body>
 </html>

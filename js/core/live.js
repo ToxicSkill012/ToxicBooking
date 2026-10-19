@@ -123,18 +123,23 @@ function liveLabel(st){
   return {main:en?'free':'свободен',sub:st.nextAbs?((en?'till ':'до ')+fmtAbs(st.nextAbs)):(en?'all day':'весь день'),cls:'free'}
 }
 
-// ═══ Сколько ПК свободно прямо сейчас — на главной и на карточках зон ═══
+// ═══ Занятость прямо сейчас — на главной: счётчик и точки-ПК на карточках зон ═══
 const TOTAL_PCS=Object.keys(ZONES).reduce((s,k)=>s+ZONES[k].pcCount,0)
 let _liveKey=''
 function renderLive(){
   const bookings=_bookingsCache.loaded?_bookingsCache.data:[]
-  const free={}
+  const en=D.lang==='en',fresh=gizmoFresh()
+  const zones={}
   let total=0
   Object.keys(ZONES).forEach(k=>{
-    free[k]=zonePcs(k).filter(lbl=>pcLive(lbl,bookings).state!=='busy').length
-    total+=free[k]
+    zones[k]=zonePcs(k).sort().map(lbl=>{
+      const st=pcLive(lbl,bookings)
+      const L=liveLabel(st)
+      return {lbl,s:st.state,t:`${lbl} · ${L.main}${st.state!=='free'&&L.sub?' · '+L.sub:''}`}
+    })
+    total+=zones[k].filter(p=>p.s!=='busy').length
   })
-  const key=JSON.stringify(free)
+  const key=fresh+JSON.stringify(zones)
   if(key===_liveKey)return
   _liveKey=key
   const el=document.getElementById('free-count')
@@ -142,12 +147,20 @@ function renderLive(){
     el.textContent=total
     el.style.color=total<=3?'var(--red)':total<=8?'var(--gold)':'var(--lime)'
   }
-  // На карточке зоны: «9/13 свободно»
+  const pill=document.querySelector('.pill.live-shimmer')
+  if(pill)pill.title=fresh?(en?'live from the club':'онлайн из клуба'):(en?'by bookings':'по броням')
   Object.keys(ZONES).forEach(k=>{
-    const t=document.querySelector(`.ZC.${k} .Ztag`)
+    const card=document.querySelector(`.ZC.${k}`);if(!card)return
+    const free=zones[k].filter(p=>p.s!=='busy').length
+    const t=card.querySelector('.Ztag')
     if(t){
-      t.innerHTML=`<i class="zfree${free[k]?'':' none'}"></i>${free[k]}/${ZONES[k].pcCount}${k==='std'?(D.lang==='en'?' free':' свободно'):''}`
-      t.title=D.lang==='en'?'free now':'свободно сейчас'
+      t.innerHTML=`<i class="zfree${free?'':' none'}"></i>${free}/${ZONES[k].pcCount}${k==='std'?(en?' free':' свободно'):''}`
+      t.title=en?'free now':'свободно сейчас'
     }
+    // Точки-ПК: зелёный — свободен, жёлтый — скоро бронь, красный — занят
+    let dots=card.querySelector('.zdots')
+    if(!dots){dots=document.createElement('div');dots.className='zdots';const p=card.querySelector('.Zp');card.insertBefore(dots,p||null)}
+    dots.innerHTML=zones[k].map(p=>`<i class="zd ${p.s}" title="${p.t}"></i>`).join('')
+    dots.setAttribute('aria-label',zones[k].map(p=>p.t).join('; '))
   })
 }

@@ -350,7 +350,8 @@ async function sPCs(w,z){
   const dayTxt=day===clubNow().day?T('сегодня','today'):day===clubNow().day+1?T('завтра','tomorrow'):bk.date.slice(0,5)
 
   w.innerHTML=`<div class="pc-head">
-      <div><div class="pch-k">${dayTxt} · ${tariffLabel()}</div><div class="pch-v">${minToHM(s)} – ${minToHM(e)}</div></div>
+      <div><div class="pch-k">${dayTxt} · ${tariffLabel()}</div><div class="pch-v">${minToHM(s)} – ${minToHM(e)}</div>
+        <div class="src${gizmoFresh()?' live':''}">${gizmoFresh()?T('онлайн из клуба','live from the club'):T('по броням','by bookings')}</div></div>
       <div class="pch-f"><b style="color:${z.color}">${free.length}</b><span>${T('свободно','free')}</span></div>
     </div>
     ${need>1?`<div class="pick-bar"><span id="pick-n"></span><button type="button" class="tp-chip" id="pick-auto">✨ ${T('Подобрать рядом','Seat us together')}</button></div>`:''}
@@ -371,8 +372,15 @@ async function sPCs(w,z){
       const next=map[lbl].find(r=>r[0]>=e)
       sub=next&&next[0]-e<=180?T(`свободен до ${minToHM(next[0])}`,`free till ${minToHM(next[0])}`):T('свободен','free')
     }
+    // Бронь на потом, а ПК занят прямо сейчас — показываем, чтобы было понятно, что творится в зале
+    let now=''
+    const nowAbs=clubNow().abs
+    if(!blk&&s>nowAbs+5){
+      const cur=map[lbl].find(r=>r[0]<=nowAbs&&nowAbs<r[1])
+      if(cur)now=`<div class="pc-now">${T('сейчас занят до','busy now till')} ${minToHM(cur[1])}</div>`
+    }
     return `<button type="button" class="PCB ${blk?'st-busy':'st-free'}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}" aria-pressed="${sel}">
-      <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${sub}</div>
+      <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${sub}</div>${now}
       ${favs.includes(lbl)?'<div class="pc-fav">❤️</div>':''}<div class="pc-ok">✓</div></button>`
   }
   const refresh=()=>{
@@ -512,8 +520,15 @@ function sConfirm(w,z){
     }else if(res.pointsMsg)setTimeout(()=>toast(res.pointsMsg,'ℹ️'),1200)
     sv();_bkData.ts=0
     haptic('ok')
-    const sumRows=rows.concat([[T('Сумма','Total'),`${paid} BYN`]])
-    document.getElementById('ok-card').innerHTML=`<div class="cbar" style="background:${z.stripe}"></div>${sumRows.map(([k,v])=>`<div class="RW"><span class="K">${k}</span><span class="V">${v}</span></div>`).join('')}`
+    // Билет: время крупно, ПК, сумма — его удобно показать на кассе
+    const card=document.getElementById('ok-card')
+    card.style.setProperty('--zc',z.color);card.style.setProperty('--za',zA(z,.18))
+    card.innerHTML=`<div class="tk-top"><span class="tk-zone">${z.emoji} ${z.name}</span><span class="tk-date">${L.DAYS[dd.getUTCDay()]}, ${dd.getUTCDate()} ${L.MONTHS[dd.getUTCMonth()]}</span></div>
+      <div class="tk-time"><b>${minToHM(s)}</b><i>→</i><b>${minToHM(e)}</b></div>
+      <div class="tk-dur">${/\d/.test(res.pkg||tariffLabel())?'':fmtDur(e-s)+' · '}${res.pkg||tariffLabel()}${nextDay?T(' · до утра',' · overnight'):''}</div>
+      <div class="tk-cut" aria-hidden="true"></div>
+      <div class="tk-pcs">${bk.pcs.map(p=>`<span>${p}</span>`).join('')}${n>1?`<em>👥 ${n} ${T('игрока','players')}</em>`:''}</div>
+      <div class="tk-bot"><div><small>${T('К оплате в клубе','Pay at the club')}</small><b>${paid} <span>BYN</span></b></div><div class="tk-id">#${String(res.group||res.id).slice(-6)}</div></div>`
     const wishes=n>1?['GG, команда! 🏆','Врывайтесь вместе! ⚡','Удачи в катках! 🎮']:['Приятной игры! 🎯','Удачи в матчах! 🏆','Врывайся! ⚡','GG WP! 🎮','Фраги обеспечены! 💀','Удачи, боец! 🔥']
     const wEl=document.getElementById('ok-wish');if(wEl)wEl.textContent=wishes[Math.floor(Math.random()*wishes.length)]
     go('ok')

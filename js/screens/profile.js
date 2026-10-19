@@ -211,6 +211,9 @@ function renderProfile(){
 function openRegModal(){
   openM('reg-m')
   const u=D.user
+  // Телефон набирается сразу в формате +375 XX XXX-XX-XX
+  const ph=document.getElementById('r-phone')
+  if(ph&&!ph._mask){ph._mask=true;ph.addEventListener('input',()=>{ph.value=maskPhone(ph.value)});ph.addEventListener('focus',()=>{if(!ph.value)ph.value='+375 '})}
   const nameEl=document.getElementById('r-name')
   const phoneEl=document.getElementById('r-phone')
   const ageEl=document.getElementById('r-bday')

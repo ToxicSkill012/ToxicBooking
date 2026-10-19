@@ -45,7 +45,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.0'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.1'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -217,6 +217,11 @@ function trustedTgId_(p) {
 
 // 🔑 Gizmo Bridge: если BRIDGE_KEY задан — без него мост не пускаем
 function bridgeOk_(p) { return !BRIDGE_KEY || String(p.key||'') === BRIDGE_KEY }
+// Мост постучался без ключа или с чужим — запоминаем, чтобы владелец увидел это в панели
+function bridgeReject_(p, action) {
+  try { CacheService.getScriptCache().put('bridge_rej', JSON.stringify({ at:new Date().toISOString(), action:action, hadKey:!!(p && p.key) }), 21600) } catch(e) {}
+  return { ok:false, error:'bridge_key' }
+}
 
 // ═══════════════════════════════════════════════
 // GET
@@ -236,11 +241,11 @@ function doGet(e) {
   if (a === 'getRewardsTable') return json({ ok:true, rewards:REWARDS, expiry:PTS.voucherExpiry })
   if (a === 'getGizmoStatus') return json(getGizmoStatus())
   if (a === 'gizmoSync') {
-    if (!bridgeOk_(p)) return json({ ok:false, error:'bridge_key' })
+    if (!bridgeOk_(p)) return json(bridgeReject_(p, a))
     return json(gizmoSyncCompact(p.hosts, p.total, p.busy, p.free))
   }
   if (a === 'getPendingBookings' || a === 'markGizmoSynced') {
-    if (!bridgeOk_(p) && !verifyAdmin(p)) return json({ ok:false, error:'bridge_key' })
+    if (!bridgeOk_(p) && !verifyAdmin(p)) return json(bridgeReject_(p, a))
     if (a === 'getPendingBookings') return json(getPendingBookings())
     return json(markGizmoSynced(p.id))
   }
@@ -260,8 +265,15 @@ function doGet(e) {
       } catch(e) { bu = '?' }
       CacheService.getScriptCache().put('botuser', bu, 600)
     }
+    // 🖥️ Состояние моста Gizmo: когда последний раз прислал данные и не стучится ли без ключа
+    var gzs = { hosts:[], updatedAt:'' }, rej = null
+    try { gzs = gizmoLoad_() } catch(e) {}
+    try { rej = JSON.parse(CacheService.getScriptCache().get('bridge_rej') || 'null') } catch(e) {}
     return json({ ok:true, v:BACKEND_V, access:dg.ok, why:dg.why, hasInit:!!p.initData, hasKey:!!p.adminKey, bot:bu,
-      secrets:{ bot:!!BOT_TOKEN, userBot:!!USER_BOT_TOKEN, adminKey:!!ADMIN_KEY, bridgeKey:!!BRIDGE_KEY } })
+      secrets:{ bot:!!BOT_TOKEN, userBot:!!USER_BOT_TOKEN, adminKey:!!ADMIN_KEY, bridgeKey:!!BRIDGE_KEY },
+      gizmo:{ updatedAt:gzs.updatedAt || '', hosts:gzs.hosts.length, busy:gzs.hosts.filter(function(h){ return h.busy }).length, staleMin:GIZMO_STALE_MIN, rejected:rej },
+      // Ключ моста — только подтверждённому владельцу, чтобы вписать его в адрес моста
+      bridgeKey: dg.ok ? BRIDGE_KEY : '' })
   }
   if (a === 'adminFind' || a === 'adminPoints' || a === 'adminBan' || a === 'adminBroadcast' || a === 'adminMaint' || a === 'adminMsg' || a === 'adminSetBal' || a === 'adminTempBan' || a === 'adminClubStats' || a === 'adminRunBday' || a === 'adminBookings') {
     var av = verifyAdminEx(p)
@@ -270,7 +282,7 @@ function doGet(e) {
     if (a === 'adminPoints')    return json(adminAdjustPoints(san(p.tgId,20), p.amount, san(safeDec(p.reason||''),100)))
     if (a === 'adminBan')       return json(adminSetBan(san(p.tgId,20), p.on === '1'))
     if (a === 'adminBroadcast') return json(adminBroadcast(san(safeDec(p.text||''),500)))
-    if (a === 'adminMaint')     return json(setMaintenance(p.on === '1', san(safeDec(p.msg||''),200)))
+    if (a === 'adminMaint')     return json(setMaintenance(p.on === '1', san(safeDec(p.msg||''),200), san(String(p.eta||''),5)))
     if (a === 'adminMsg')       return json(adminMessage(san(p.tgId,20), san(safeDec(p.text||''),500)))
     if (a === 'adminSetBal')    return json(adminSetBalance(san(p.tgId,20), p.target))
     if (a === 'adminTempBan')   return json(adminTempBan(san(p.tgId,20), p.days))
@@ -339,7 +351,7 @@ function doPost(e) {
     if (a==='cancelBooking') return json(cancelBooking(san(String(d.id||''),30), trustedTgId_(d), verifyAdmin(d), String(d.all) === '1'))
     if (a==='redeemReward')  return json(redeemReward(san(String(d.rewardId||''),10), trustedTgId_(d), san(String(d.user||''),60), san(String(d.phone||''),20)))
     if (a==='gizmoSync') {
-      if (!bridgeOk_(d)) return json({ ok:false, error:'bridge_key' })
+      if (!bridgeOk_(d)) return json(bridgeReject_(d, a))
       return json(gizmoSync(d.hosts))
     }
 
@@ -1668,13 +1680,21 @@ function adminFindUser(q) {
 // 🛠 ТЕХНИЧЕСКИЕ РАБОТЫ (Script Properties)
 function getMaintenance() {
   var pr = PropertiesService.getScriptProperties()
-  return { ok:true, on: pr.getProperty('MAINT') === '1', msg: pr.getProperty('MAINT_MSG') || '' }
+  return { ok:true, on: pr.getProperty('MAINT') === '1', msg: pr.getProperty('MAINT_MSG') || '',
+    eta: pr.getProperty('MAINT_ETA') || '', since: pr.getProperty('MAINT_SINCE') || '' }
 }
-function setMaintenance(on, msg) {
+// eta — «вернёмся к HH:MM» по времени клуба (необязательно)
+function setMaintenance(on, msg, eta) {
   var pr = PropertiesService.getScriptProperties()
+  eta = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(eta||'')) ? String(eta) : ''
+  var wasOn = pr.getProperty('MAINT') === '1'
   pr.setProperty('MAINT', on ? '1' : '')
   pr.setProperty('MAINT_MSG', msg || '')
-  return { ok:true, on:!!on, msg:msg||'' }
+  pr.setProperty('MAINT_ETA', on ? eta : '')
+  // С какого момента идут работы — для полоски прогресса до «вернёмся к»
+  if (on && (!wasOn || !pr.getProperty('MAINT_SINCE'))) pr.setProperty('MAINT_SINCE', new Date().toISOString())
+  if (!on) pr.setProperty('MAINT_SINCE', '')
+  return { ok:true, on:!!on, msg:msg||'', eta:on ? eta : '' }
 }
 
 // 💬 Личное сообщение клиенту через бота
