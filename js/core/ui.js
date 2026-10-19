@@ -1,5 +1,27 @@
 // Навигация, тосты, модалки
 
+// Выполнить в простое (когда браузер свободен) — не мешает анимациям и прокрутке.
+// Раньше функция вызывалась по всему приложению, но не была объявлена: из-за этого
+// не обновлялся статус Gizmo и не загружалась панель владельца.
+function idle(fn,timeout=1500){
+  if('requestIdleCallback' in window)return requestIdleCallback(()=>fn(),{timeout})
+  return setTimeout(fn,60)
+}
+
+// Кнопка «Назад» Telegram в шапке — на экранах брони и настроек
+function syncTgBack(id){
+  try{
+    const bb=window.Telegram?.WebApp?.BackButton;if(!bb)return
+    if(id==='book'||id==='settings')bb.show();else bb.hide()
+  }catch(e){}
+}
+function onTgBack(){
+  const open=document.querySelector('.MBG.open')
+  if(open){open.id?closeM(open.id):open.remove();return}
+  if(D.cur==='book')bkBack()
+  else go('home')
+}
+
 // ═══════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════
@@ -28,7 +50,8 @@ function go(id){
   try{logAct('экран: '+id)}catch(e){}
   // Ушли с онбординга — гасим его слайдер (иначе крутится весь сеанс)
   if(id!=='ob'&&_obTimer){clearInterval(_obTimer);_obTimer=null}
-  try{if(id==='bklist')renderBkList()}catch(e){/*silenced*/}
+  syncTgBack(id)
+  try{if(id==='bklist'){renderBkList();syncMyBookings().then(ch=>{if(ch&&D.cur==='bklist')renderBkList()}).catch(()=>{})}}catch(e){/*silenced*/}
   try{if(id==='profile')renderProfile()}catch(e){/*silenced*/}
   try{if(id==='home')updateFreeCounter()}catch(e){}
   try{if(id==='settings')renderPromoList()}catch(e){}

@@ -1025,6 +1025,7 @@ function createBooking(b) {
     }
 
     // 🔒 Проверяем пересечения на этом ПК (вчера/сегодня/завтра — ночные брони переходят через полночь)
+    var curBkEnd = 0 // конец брони, которая идёт на этом ПК прямо сейчас
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i]
       if (!String(r[0]).trim()) continue
@@ -1034,6 +1035,7 @@ function createBooking(b) {
       var rDay = dayNum_(fmtDate(r[5]))
       if (isNaN(rDay) || Math.abs(rDay - myDay) > 1) continue
       var their = bookingRange_(fmtDate(r[5]), fmtTime(r[6]), fmtTime(r[7]))
+      if (their && their[0] <= nowAbs && nowAbs < their[1]) curBkEnd = Math.max(curBkEnd, their[1])
       if (rangesOverlap_(mine, their)) {
         lock.releaseLock()
         return {
@@ -1047,7 +1049,8 @@ function createBooking(b) {
     // 🖥️ Gizmo: мешает только если бронь пересекается с ИДУЩЕЙ сессией
     var gz = gizmoHost_(b.pc)
     if (gz && gz.busy) {
-      var sessEnd = gz.left !== null ? nowAbs + gz.left : nowAbs + GIZMO_UNKNOWN_BUSY_MIN
+      // Остаток неизвестен: если сейчас идёт бронь на этот ПК — сессия по ней, иначе берём запас
+      var sessEnd = gz.left !== null ? nowAbs + gz.left : (curBkEnd || nowAbs + GIZMO_UNKNOWN_BUSY_MIN)
       if (rangesOverlap_(mine, [nowAbs, sessEnd])) {
         lock.releaseLock()
         return { ok:false, conflict:true, error:b.pc + ' сейчас занят в клубе' + (gz.left !== null ? ' до ' + absToHm_(sessEnd) : '') }

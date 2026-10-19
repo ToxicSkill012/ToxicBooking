@@ -18,11 +18,12 @@ function doLogin(btn){
 }
 
 function updateGr(){
-  const now=new Date(),L=I18N[D.lang]
+  // Время клуба, а не телефона — у всех одинаково
+  const now=new Date(Date.now()+CLUB_TZ_OFFSET*60000),L=I18N[D.lang]
   const el=document.getElementById('gr-t')
-  if(el)el.textContent=`${L.DAYS[now.getDay()]}, ${now.getDate()} ${L.MONTHS[now.getMonth()]} · ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+  if(el)el.textContent=`${L.DAYS[now.getUTCDay()]}, ${now.getUTCDate()} ${L.MONTHS[now.getUTCMonth()]} · ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`
   // Персональное приветствие по времени суток
-  const h=now.getHours()
+  const h=now.getUTCHours()
   const greetings={ru:h<6?'Ночной игрок 🌙':h<12?'Доброе утро ☀️':h<18?'Привет 👋':h<22?'Добрый вечер 🎮':'Ночная смена 🌙',
     en:h<6?'Night gamer 🌙':h<12?'Good morning ☀️':h<18?'Hello 👋':h<22?'Good evening 🎮':'Night shift 🌙',
     zh:h<6?'夜间玩家 🌙':h<12?'早上好 ☀️':h<18?'你好 👋':h<22?'晚上好 🎮':'深夜模式 🌙'}
@@ -33,46 +34,11 @@ function updateGr(){
   updateFreeCounter()
 }
 
+// Счётчик свободных ПК и табло «Зал сейчас»: живые сессии Gizmo + брони
 async function updateFreeCounter(){
-  // 🖥️ Сначала пробуем Gizmo (реальный статус ПК)
-  const TOTAL_PCS=21
-  if(_gizmoCache.hosts.length>0 && Date.now()-_gizmoCache.ts<120000){
-    const known=_gizmoCache.hosts.length
-    // Если Gizmo прислал не все ПК — недостающие считаем свободными,
-    // иначе счётчик занижался и показывал неверное число
-    const busy=_gizmoCache.hosts.filter(h=>h.busy).length
-    const free=Math.max(0,Math.min(TOTAL_PCS,TOTAL_PCS-busy))
-    const el=document.getElementById('free-count')
-    if(el){
-      el.textContent=free
-      el.style.color=free<=3?'var(--red)':free<=8?'var(--gold)':'var(--lime)'
-    }
-    return
-  }
-  // 📊 Fallback: считаем по бронированиям из Sheets
-  try{
-    const today = fmtDateJS(new Date())
-    const nowH  = new Date().getHours()
-    const allBk = await loadBookings(null, null)
-    const normD3=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-    const bookings=allBk.filter(b=>normD3(b.date)===normD3(today))
-    const busyNow = new Set(
-      bookings.filter(b=>{
-        const bs=timeToMinJS(b.start), be=timeToMinJS(b.end)
-        const now=nowH*60
-        // Ночная бронь: end <= start (22:00-08:00)
-        if(be<=bs) return now>=bs || now<be
-        return now>=bs && now<be
-      }).map(b=>b.pc)
-    )
-    const totalPCs = 13+3+5
-    const freeNow  = totalPCs - busyNow.size
-    const el = document.getElementById('free-count')||document.querySelector('.pill .LV')
-    if(el){
-      el.textContent = freeNow
-      el.style.color = freeNow<=3?'var(--red)':freeNow<=8?'var(--gold)':'var(--lime)'
-    }
-  }catch(e){}
+  renderLive()
+  try{ await loadBookings(null, null) }catch(e){}
+  renderLive()
 }
 
 // ═══════════════════════════════════════════════

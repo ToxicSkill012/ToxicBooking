@@ -1,4 +1,4 @@
-// Пошаговое бронирование
+// Пошаговое бронирование: пакет → ПК → дата → время (поминутно) → итог
 
 // ═══════════════════════════════════════════════
 // BOOKING
@@ -7,7 +7,7 @@ const STEPS=()=>[_('stepPkg'),_('stepPc'),_('stepDate'),_('stepTime'),_('stepSum
 
 function openZone(key){
   const z=ZONES[key]
-  Object.assign(D.bk,{zone:key,pkg:null,pc:null,date:null,sh:14,step:0})
+  Object.assign(D.bk,{zone:key,pkg:null,pc:null,date:null,sh:14,sm:null,smDay:null,step:0})
   document.getElementById('bk-title').textContent=`${z.emoji} ${z.name}`
   document.getElementById('bk-title').style.color=z.color
   document.getElementById('bk-sub').textContent=`${z.pc.gpu} · ${z.devices.mon}`
@@ -32,15 +32,15 @@ function pkgAvail(pid){
   return true
 }
 function pkgIsNow(pid){
-  // Проверяет — доступен ли пакет прямо сейчас (для подсказок)
-  const h=new Date().getHours()
+  // Проверяет — доступен ли пакет прямо сейчас (для подсказок) — по времени клуба
+  const h=Math.floor(clubNow().min/60)
   if(pid.endsWith('3')) return h>=8&&h<11
   if(pid.endsWith('4')) return h>=11&&h<17
   if(pid.endsWith('5')) return h>=22||h<8
   return true
 }
 function sPkgs(w,z){
-  const L=D.lang,h=new Date().getHours()
+  const L=D.lang,h=Math.floor(clubNow().min/60)
   // Time hint
   let hint='',hclr='var(--t2)'
   if(h>=8&&h<11){hint=L==='en'?'☀️ Morning packages available now':'☀️ Утренние пакеты доступны сейчас';hclr='var(--gold)'}
@@ -48,7 +48,7 @@ function sPkgs(w,z){
   else if(h>=17&&h<22){hint=L==='en'?'🌙 Night packages from 22:00':'🌙 Ночные пакеты с 22:00';hclr='var(--blue)'}
   else{hint=L==='en'?'🌙 Night packages available now':'🌙 Ночные пакеты доступны сейчас';hclr='var(--blue)'}
   w.innerHTML=`<div class="SL">${_('pkgLbl')}</div>`+
-    `<div style="padding:9px 13px;border-radius:11px;background:var(--s3);border:1px solid var(--b1);font-size:11px;font-weight:500;color:${hclr};margin-bottom:12px;display:flex;align-items:center;gap:7px">${hint}</div>`+
+    `<div class="hint-pill" style="color:${hclr}">${hint}</div>`+
     `<div class="PG" id="pg"></div>`
   const pg=w.querySelector('#pg')
   z.pkgs.forEach(p=>{
@@ -56,12 +56,12 @@ function sPkgs(w,z){
     const d=document.createElement('div')
     d.className='PK'+(sel?' sel':'')+(avail?'':' pk-na')
     const isNow=pkgIsNow(p.id)
-    const timeLbl=p.locked?(isNow?'✅ Сейчас доступен':'⏰ '+p.t):(L==='en'?p.te:p.t)
+    // У пакетов с фиксированным временем окно показываем один раз; «● сейчас» — если оно идёт
+    const timeLbl=p.locked?(isNow?'<span class="pk-now">● '+(L==='en'?'now':'сейчас')+'</span> '+p.t:'⏰ '+p.t):(L==='en'?p.te:p.t)
     const timeLblColor=p.locked&&!isNow?'var(--gold)':''
-    const lockedBadge=p.locked?(' <span style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(196,255,62,.12);color:var(--lime);font-weight:600;font-family:var(--m)">'+p.t+'</span>'):'';
     d.innerHTML=
       '<div class="pk-c">✓</div>'+
-      '<div class="pk-n">'+(L==='en'?p.nen:p.n)+lockedBadge+'</div>'+
+      '<div class="pk-n">'+(L==='en'?p.nen:p.n)+'</div>'+
       '<div class="pk-t" style="color:'+timeLblColor+'">'+timeLbl+'</div>'+
       '<div class="pk-p" style="color:'+z.color+'">'+p.p+'<span class="pk-b"> BYN</span></div>'
     d.style.position='relative'
@@ -70,6 +70,8 @@ function sPkgs(w,z){
   })
 }
 
+// ═══ ШАГ «ПК»: живой статус у каждого компьютера ═══
+// Занятый сейчас ПК всё равно можно выбрать — на потом или на другой день.
 async function sPCs(w,z){
   const pre=z.key==='std'?'ST':z.key==='vip'?'VIP':'BC'
   const devL={h:D.lang==='en'?'🎧 Headphones':'🎧 Наушники',m:D.lang==='en'?'🖱️ Mouse':'🖱️ Мышь',k:D.lang==='en'?'⌨️ Keyboard':'⌨️ Клавиатура',mon:'🖥️ Monitor'}
@@ -78,121 +80,89 @@ async function sPCs(w,z){
 
   w.innerHTML=`
     <div class="SL">${_('pcLbl')} <span id="pc-free-lbl" style="color:var(--lime);font-family:var(--m);font-size:11px"></span></div>
-    <div class="PCG" id="pcg"><div style="padding:20px;color:var(--t2);font-size:12px;text-align:center"><span class="spin"></span></div></div>
+    <div id="pc-src"></div>
+    <div class="PCG" id="pcg"><div style="padding:20px;color:var(--t2);font-size:12px;text-align:center;grid-column:1/-1"><span class="spin"></span></div></div>
+    <div class="pc-legend">
+      <span><i class="hl free"></i>${D.lang==='en'?'free':'свободен'}</span>
+      <span><i class="hl soon"></i>${D.lang==='en'?'booking soon':'скоро бронь'}</span>
+      <span><i class="hl busy"></i>${D.lang==='en'?'busy · till':'занят · до'}</span>
+    </div>
+    <div class="pc-tip">${D.lang==='en'?'Busy PCs can be booked for later — pick the time on the next steps.':'Занятый ПК можно забронировать на потом — время выберешь дальше. Долгое нажатие — ❤️ в избранное.'}</div>
     <div class="SL" style="margin-top:18px">${_('equipment')}</div>
     <div class="CRD">${dr}${pr}</div>
     <div style="height:14px"></div>`
   addBack(w)
 
   // 🚀 Параллельная загрузка — Gizmo + брони одновременно
-  const date = D.bk.date?.v || fmtDateJS(new Date())
-  const sh   = D.bk.sh || 12
-  const h    = D.bk.pkg?.h || 1
-  const endH = Math.min(sh + h, 24)
+  const [,allBks]=await Promise.all([loadGizmoStatus(),loadBookings(null,null,false)])
+  if(D.cur!=='book'||D.bk.step!==1||!w.isConnected)return // пока грузилось, ушли со шага
 
-  const [,allBks] = await Promise.all([
-    loadGizmoStatus(),
-    loadBookings(null, null, false)
-  ])
+  const pcg=w.querySelector('#pcg')
+  pcg.innerHTML=''
+  let freeCount=0
 
-  const normD=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-  const myDate=normD(date)
-  let bookings=(allBks||[]).filter(b=>normD(b.date)===myDate&&b.status!=='cancelled'&&b.status!=='completed')
+  const src=w.querySelector('#pc-src')
+  if(src)src.innerHTML=gizmoFresh()
+    ?`<div class="src-badge live"><div class="LD"></div>${D.lang==='en'?'Live from the club · see when each PC frees up':'Онлайн из клуба · видно, до скольки занят каждый ПК'}</div>`
+    :`<div class="src-badge">📊 ${D.lang==='en'?'By bookings':'По бронированиям'}</div>`
 
-  // Определяем занятость ПК: Gizmo > бронирования
-  function isPcBusy(lbl){
-    const gizmo = isGizmoBusy(lbl)
-    if(gizmo !== null) return gizmo
-    return bookings.some(b=>{
-      if(b.pc!==lbl)return false
-      const bs=timeToMinJS(b.start),be=timeToMinJS(b.end)
-      // Ночная бронь (22:00-08:00)
-      if(be<=bs) return (sh*60<1440&&endH*60>bs)||(sh*60<be)
-      return sh*60<be&&endH*60>bs
-    })
+  const makePCBtn=(num)=>{
+    const lbl=`${pre}-${String(num).padStart(2,'0')}`
+    const st=pcLive(lbl,allBks)
+    if(st.state!=='busy')freeCount++
+    const L=liveLabel(st)
+    const isFav=(D.user._favPcs||[]).includes(lbl)
+    const d=document.createElement('button')
+    d.type='button'
+    d.className='PCB st-'+st.state+(D.bk.pc?.lbl===lbl?' sel':'')
+    d.style.setProperty('--zc',z.color)
+    d.setAttribute('aria-label',lbl+', '+L.main+(st.state==='busy'&&st.leftMin!==null?', '+L.sub:''))
+    d.innerHTML=`<div class="pc-id">${String(num).padStart(2,'0')}</div>`+
+      `<div class="pc-st">${L.main}</div>`+
+      (st.state==='busy'&&st.leftMin!==null?`<div class="pc-left">${L.sub}</div>`:st.state==='soon'?`<div class="pc-left">${L.sub}</div>`:'')+
+      (isFav?'<div class="pc-fav">❤️</div>':'')
+    d.onclick=()=>{
+      if(d._lp){d._lp=false;return} // долгое нажатие — это «в избранное», а не выбор
+      D.bk.pc={lbl,id:num};D.bk.sm=null;D.bk.step=2;renderStep()
+    }
+    // Long press = favorite
+    let _lt;d.onpointerdown=()=>{_lt=setTimeout(()=>{d._lp=true;toggleFavPc(lbl);sPCs(w,z)},600)}
+    d.onpointerup=()=>{if(_lt)clearTimeout(_lt)}
+    d.onpointerleave=()=>{if(_lt)clearTimeout(_lt)}
+    return d
   }
 
-  // До какого времени ПК занят: сначала живая сессия Gizmo, потом брони
-  
-
-  const pcg = w.querySelector('#pcg')
-  pcg.innerHTML = ''
-  let freeCount = 0
-
-  // Источник данных
-  const gizmoFresh = _gizmoCache.hosts.length>0 && Date.now()-_gizmoCache.ts<120000
-  const srcBadge = gizmoFresh
-    ? '<div style="display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:8px;background:rgba(75,158,255,.08);border:1px solid rgba(75,158,255,.15);font-size:10px;color:var(--blue);margin-bottom:10px"><div class="LD" style="background:var(--blue);width:5px;height:5px"></div>Занятость обновляется автоматически</div>'
-    : '<div style="padding:6px 10px;border-radius:8px;background:var(--s3);font-size:10px;color:var(--t3);margin-bottom:10px">📊 По бронированиям</div>'
-  pcg.insertAdjacentHTML('beforebegin', srcBadge)
-
   if(z.key==='std'){
-    pcg.style.display='grid'
-    pcg.style.gridTemplateColumns='1fr 1fr'
-    pcg.style.gap='8px'
+    pcg.classList.add('PCG-std')
     const leftNums=[1,3,5,7,9,11,13,15]
     const rightNums=[2,4,6,8,10]
     const leftCol=document.createElement('div')
-    leftCol.innerHTML=`<div style="font-size:9px;color:var(--t2);font-weight:600;text-align:center;margin-bottom:6px;letter-spacing:.5px">← ЛЕВАЯ</div>`
+    leftCol.className='pc-col'
+    leftCol.innerHTML=`<div class="pc-side">← ${D.lang==='en'?'LEFT':'ЛЕВАЯ'}</div>`
     const rightCol=document.createElement('div')
-    rightCol.innerHTML=`<div style="font-size:9px;color:var(--t2);font-weight:600;text-align:center;margin-bottom:6px;letter-spacing:.5px">ПРАВАЯ →</div>`
-    const makePCBtn=(num)=>{
-      const lbl=`${pre}-${String(num).padStart(2,'0')}`
-      const busy=isPcBusy(lbl)
-      if(!busy)freeCount++
-      const isFav=(D.user._favPcs||[]).includes(lbl)
-      const d=document.createElement('div')
-      d.className='PCB'+(busy?' busy':D.bk.pc?.lbl===lbl?' sel':'')
-      d.style.marginBottom='6px'
-      d.style.position='relative'
-      d.innerHTML=`<div class="pc-id" style="color:${busy?'var(--red)':z.color}">${String(num).padStart(2,'0')}</div><div class="pc-d" style="background:${busy?'var(--red)':z.color}"></div>${busy?'<div style="font-size:7.5px;color:var(--red);margin-top:3px;font-weight:700;letter-spacing:.6px">ЗАНЯТ</div>':''}${isFav?'<div style="position:absolute;top:3px;right:3px;font-size:8px">❤️</div>':''}`
-      if(!busy){
-        d.onclick=(e)=>{
-          if(e.target.closest('.fav-btn'))return
-          D.bk.pc={lbl,id:num};D.bk.step=2;renderStep()
-        }
-        // Long press = favorite
-        let _lt;d.onpointerdown=()=>{_lt=setTimeout(()=>{toggleFavPc(lbl);_lt=null;sPCs(w,z)},600)}
-        d.onpointerup=()=>{if(_lt)clearTimeout(_lt)}
-        d.onpointerleave=()=>{if(_lt)clearTimeout(_lt)}
-      }
-      return d
-    }
+    rightCol.className='pc-col'
+    rightCol.innerHTML=`<div class="pc-side">${D.lang==='en'?'RIGHT':'ПРАВАЯ'} →</div>`
     leftNums.forEach(n=>leftCol.appendChild(makePCBtn(n)))
     rightNums.forEach(n=>rightCol.appendChild(makePCBtn(n)))
     pcg.appendChild(leftCol)
     pcg.appendChild(rightCol)
   } else {
-    Array.from({length:z.pcCount},(_,i)=>{
-      const lbl=`${pre}-${String(i+1).padStart(2,'0')}`
-      const busy=isPcBusy(lbl)
-      if(!busy)freeCount++
-      const isFav=(D.user._favPcs||[]).includes(lbl)
-      const d=document.createElement('div')
-      d.className='PCB'+(busy?' busy':D.bk.pc?.lbl===lbl?' sel':'')
-      d.style.position='relative'
-      d.innerHTML=`<div class="pc-id" style="color:${busy?'var(--red)':z.color}">${String(i+1).padStart(2,'0')}</div><div class="pc-d" style="background:${busy?'var(--red)':z.color}"></div>${busy?'<div style="font-size:7.5px;color:var(--red);margin-top:3px;font-weight:700;letter-spacing:.6px">ЗАНЯТ</div>':''}${isFav?'<div style="position:absolute;top:3px;right:3px;font-size:8px">❤️</div>':''}`
-      if(!busy){
-        d.onclick=()=>{D.bk.pc={lbl,id:i+1};D.bk.step=2;renderStep()}
-        let _lt;d.onpointerdown=()=>{_lt=setTimeout(()=>{toggleFavPc(lbl);sPCs(w,z)},600)}
-        d.onpointerup=()=>{if(_lt)clearTimeout(_lt)}
-        d.onpointerleave=()=>{if(_lt)clearTimeout(_lt)}
-      }
-      pcg.appendChild(d)
-    })
+    Array.from({length:z.pcCount},(_,i)=>pcg.appendChild(makePCBtn(i+1)))
   }
 
-  const lbl = w.querySelector('#pc-free-lbl')
-  if(lbl) lbl.textContent = `· ${freeCount} свободно`
+  const lbl=w.querySelector('#pc-free-lbl')
+  if(lbl) lbl.textContent=D.lang==='en'?`· ${freeCount} free now`:`· ${freeCount} свободно сейчас`
 }
 
+// ═══ ШАГ «ДАТА» — по календарю клуба ═══
 function sDates(w,z){
   const L=I18N[D.lang]
+  const today=clubNow().day
   const dates=Array.from({length:7},(_,i)=>{
-    const d=new Date();d.setDate(d.getDate()+i)
-    return{v:fmtDateJS(d),label:i===0?L.today:i===1?L.tomorrow:L.DAYS[d.getDay()],n:d.getDate(),m:L.MONTHS[d.getMonth()]}
+    const day=today+i,d=new Date(day*86400000)
+    return{v:dateOfDayNum(day),label:i===0?L.today:i===1?L.tomorrow:L.DAYS[d.getUTCDay()],n:d.getUTCDate(),m:L.MONTHS[d.getUTCMonth()]}
   })
-  if(!D.bk.date)D.bk.date=dates[0]
+  if(!D.bk.date||!dates.some(d=>d.v===D.bk.date.v))D.bk.date=dates[0]
   w.innerHTML=`<div class="SL">${_('dateLbl')}</div><div class="DCH">${dates.map(d=>`<div class="DC${D.bk.date.v===d.v?' sel':''}" data-v="${d.v}"><div class="dc-d">${d.label}</div><div class="dc-n">${d.n}</div><div class="dc-m">${d.m}</div></div>`).join('')}</div><div style="height:14px"></div>`
   addBack(w)
   w.querySelectorAll('.DC').forEach(el=>{
@@ -206,274 +176,220 @@ function sDates(w,z){
 // Константы клуба
 const CLUB = { open:0, close:24, name:'ToxicSkill', phone:'+375 33 665-66-52' }
 
-async function sTime(w,z){
-  const p=D.bk.pkg,h=p.h
-  const pid=p.id
-  const isLocked=p.locked===true
-  const isNightPkg=pid.endsWith('5')
+// Абсолютные минуты начала и конца выбранной брони
+function bkRange(){
+  const bk=D.bk,p=bk.pkg,day=dayNumOf(bk.date.v)
+  if(p.locked){
+    const s=day*1440+p.tStart*60
+    const e=p.tEnd<=p.tStart?day*1440+1440+p.tEnd*60:day*1440+p.tEnd*60
+    return [s,e]
+  }
+  return [bk.sm,bk.sm+p.h*60]
+}
 
+// ═══ ШАГ «ВРЕМЯ» — поминутно ═══
+async function sTime(w,z){
+  const p=D.bk.pkg,h=p.h,durMin=h*60
+  const isLocked=p.locked===true
   const pcLabel=D.bk.pc.lbl
   const date=D.bk.date.v
+  const day=dayNumOf(date)
+  const now=clubNow()
+  const isToday=day===now.day
+  const en=D.lang==='en'
 
-  let sh=isLocked?(p.tStart||22):Math.max(0,Math.min(23,D.bk.sh||10))
-  // Если бронь на сегодня и стартовый час уже прошёл — двигаем на текущий+1
-  if(!isLocked){
-    const todayStr0=fmtDateJS(new Date())
-    if(date===todayStr0){
-      const minH=new Date().getHours()+1
-      if(sh<minH)sh=Math.min(23,minH)
+  w.innerHTML=`<div class="SL">${_('timeLbl')}</div><div class="TB2" style="text-align:center;padding:30px"><span class="spin"></span></div>`
+  const [,allBookings]=await Promise.all([gizmoFresh()?null:loadGizmoStatus(),loadBookings(null,null,false)])
+  if(D.cur!=='book'||D.bk.step!==3||!w.isConnected)return
+
+  const busy=mergeRanges(pcBusyRanges(pcLabel,allBookings))
+  const live=pcLive(pcLabel,allBookings)
+  const dayStart=day*1440
+  const minStart=isToday?clubNow().abs:dayStart
+  const maxStart=dayStart+1439
+  const clampS=v=>Math.min(maxStart,Math.max(minStart,Math.round(v)))
+  const blockerFor=(s,e)=>busy.find(r=>rangesOverlap(r,[s,e]))
+  // Первое время ≥ from, когда пакет влезает целиком
+  const firstFree=from=>{
+    let t=from
+    for(let g=0;g<300;g++){
+      t=chainEnd(busy,t)
+      const b=blockerFor(t,t+durMin)
+      if(!b)return t
+      t=b[1]
     }
-  }
-  D.bk.sh=sh
-
-  const endStr=()=>isNightPkg?'08:00':fmt(Math.min(sh+h,24))
-
-  // ── Загружаем брони — используем кэш если свежий (уже загружены в sPCs) ──
-  let allBookings=[]
-  try{
-    // Используем loadBookings с кэшем — если только что загружали в sPCs, не грузим снова
-    allBookings=await loadBookings(null,null,false)
-    if(!allBookings.length){
-      // Кэш пустой — грузим напрямую
-      const _r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getBookings'})})
-      const _d=await _r.json()
-      if(_d.ok)allBookings=(_d.bookings||[]).filter(b=>b.status!=='offline'&&!String(b.id||'').startsWith('OFF'))
-    }
-  }catch(e){}
-
-  // Фильтруем по ПК и дате
-  const pcBookings=allBookings.filter(b=>{
-    if(b.status==='cancelled'||b.status==='completed')return false
-    if(b.pc!==pcLabel)return false
-    return b.date===date
-  })
-
-  // ── Gizmo статус ──
-  const gizmoBusy=isGizmoBusy(pcLabel)
-
-  // ── Строим визуальную шкалу 0-24 ──
-  const hours=Array.from({length:24},(_,i)=>i)
-  function isHourOccupied(hour){
-    return pcBookings.some(b=>{
-      const bs=timeToMinJS(b.start),be=timeToMinJS(b.end)
-      const h0=hour*60,h1=(hour+1)*60
-      // Ночная бронь (22:00-08:00): end < start
-      if(be<=bs){
-        // Занято от start до 24:00 И от 00:00 до end
-        return h0<1440&&h1>bs || h0<be
-      }
-      return h0<be&&h1>bs
-    })
-  }
-  function getBookingAt(hour){
-    return pcBookings.find(b=>{
-      const bs=timeToMinJS(b.start),be=timeToMinJS(b.end)
-      const h0=hour*60,h1=(hour+1)*60
-      if(be<=bs) return (h0<1440&&h1>bs) || h0<be
-      return h0<be&&h1>bs
-    })
-  }
-  function isSlotFree(startH,dur){
-    for(let i=startH;i<startH+dur&&i<24;i++){
-      if(isHourOccupied(i))return false
-      if(isHourPast(i))return false
-    }
-    return true
-  }
-  // Прошедшее время: если бронь на сегодня — часы до текущего недоступны
-  function isHourPast(hour){
-    if(isNightPkg)return false // ночной пакет с 22:00 — особый случай
-    const todayStr=fmtDateJS(new Date())
-    if(date!==todayStr)return false
-    const nowH=new Date().getHours()
-    return hour<nowH
+    return t
   }
 
-  // ── Форматируем занятые блоки для отображения ──
-  const occupiedList=[]
-  const seen=new Set()
-  pcBookings.forEach(b=>{
-    if(seen.has(b.id))return;seen.add(b.id)
-    occupiedList.push({start:b.start,end:b.end,id:b.id})
-  })
+  // Стартовая позиция: прошлый выбор → иначе ближайшее свободное
+  let sm
+  if(isLocked) sm=dayStart+p.tStart*60
+  else{
+    const saved=D.bk.sm!=null&&D.bk.smDay===day?D.bk.sm:null
+    sm=clampS(saved!=null?saved:firstFree(isToday?minStart:dayStart+14*60))
+  }
+  const endOf=s=>isLocked?bkRange()[1]:s+durMin
 
-  // ── Locked пакет ──
+  // ── Живой статус ПК сегодня ──
+  let liveCard=''
+  if(isToday&&live.state==='busy'){
+    const L=liveLabel(live)
+    liveCard=`<div class="live-card busy"><span class="lc-dot"></span><div><b>${pcLabel}</b> ${live.source==='gizmo'?(en?'is in use now':'сейчас занят в клубе'):(en?'is booked now':'сейчас забронирован')}${live.untilAbs!==null?` · <b>${L.main}</b> <span class="lc-sub">(${L.sub})</span>`:''}</div></div>`
+  }else if(isToday&&live.state==='soon'){
+    liveCard=`<div class="live-card soon"><span class="lc-dot"></span><div><b>${pcLabel}</b> ${en?'is free till':'свободен до'} <b>${minToHM(live.nextAbs)}</b> <span class="lc-sub">(${en?'booking in ':'бронь через '}${fmtDur(live.inMin)})</span></div></div>`
+  }
+
+  // ── Занятые отрезки этого дня (список) ──
+  const dayBusy=busy.filter(r=>rangesOverlap(r,[dayStart,dayStart+1440+360]))
+  let occupiedHTML=''
+  if(dayBusy.length){
+    const shown=dayBusy.slice(0,4)
+    occupiedHTML=`<div class="occ"><div class="occ-h">🔒 ${en?'Busy on':'Занято на'} ${pcLabel}</div>`+
+      shown.map(r=>`<div class="occ-i"><span>${minToHM(r[0])}–${minToHM(r[1])}${Math.floor(r[1]/1440)>day?' <small>+1</small>':''}</span><span>${en?'busy':'занято'}</span></div>`).join('')+
+      (dayBusy.length>4?`<div class="occ-more">${en?'and':'и ещё'} ${dayBusy.length-4}</div>`:'')+`</div>`
+  }
+
+  // ── Фиксированный пакет ──
   const timeBadge=isLocked?`
-    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(196,255,62,.08),rgba(42,237,181,.05));border:1.5px solid var(--lime30);margin-bottom:12px">
-      <div style="width:38px;height:38px;border-radius:11px;background:var(--lime15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔒</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:11px;font-weight:700;color:var(--lime);letter-spacing:.3px">ФИКСИРОВАННОЕ ВРЕМЯ</div>
-        <div style="font-family:var(--m);font-size:17px;font-weight:800;margin-top:2px;color:var(--txt)">${p.t}</div>
-      </div>
-    </div>`:
-    `<div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border-radius:10px;background:rgba(42,237,181,.06);border:1px solid rgba(42,237,181,.15);margin-bottom:12px;font-size:11px">
-      <span style="font-size:14px">⚡</span><span><b style="color:var(--cyan)">Выбери время</b> — занятые часы отмечены красным</span>
-    </div>`
-
-  // ── Gizmo предупреждение ──
-  const gizmoWarn=gizmoBusy===true?`
-    <div style="display:flex;gap:8px;padding:10px 14px;border-radius:10px;background:rgba(255,63,96,.08);border:1px solid rgba(255,63,96,.2);margin-bottom:12px;font-size:11px">
-      <span>🔴</span><span style="color:var(--red)"><b>${pcLabel}</b> сейчас занят в клубе (Gizmo live). Бронировать на текущее время нельзя.</span>
+    <div class="lock-card">
+      <div class="lock-ic">🔒</div>
+      <div><div class="lock-k">${en?'FIXED TIME':'ФИКСИРОВАННОЕ ВРЕМЯ'}</div><div class="lock-v">${p.t}</div></div>
     </div>`:''
 
-  // ── Визуальная шкала времени ──
-  let timelineHTML=''
-  if(!isLocked){
-    const cellW=100/24
-    let barCells=''
-    for(let i=0;i<24;i++){
-      const occ=isHourOccupied(i)
-      const past=isHourPast(i)
-      const bg=past?'rgba(255,255,255,.04)':occ?'var(--red)':'rgba(196,255,62,.15)'
-      barCells+=`<div data-h="${i}" style="flex:1;height:28px;background:${bg};border-right:1px solid var(--s4);cursor:${(occ||past)?'not-allowed':'pointer'};position:relative;transition:background .15s${past?';opacity:.5':''}" title="${fmt(i)}-${fmt(i+1)}${past?' прошло':occ?' ЗАНЯТ':''}"></div>`
-    }
-    // Маркер выбранного диапазона (overlay)
-    timelineHTML=`
-    <div style="margin-bottom:6px">
-      <div style="font-size:10px;color:var(--t2);margin-bottom:6px;display:flex;justify-content:space-between">
-        <span>ШКАЛА ЗАНЯТОСТИ ${pcLabel}</span>
-        <span style="display:flex;gap:8px"><span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:var(--red)"></span>занят</span><span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:rgba(196,255,62,.3)"></span>свободно</span></span>
-      </div>
-      <div id="timeline-bar" style="display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--b2);position:relative">${barCells}<div id="sel-marker" style="position:absolute;top:0;bottom:0;background:rgba(196,255,62,.35);border:2px solid var(--lime);border-radius:6px;pointer-events:none;transition:left .2s var(--e),width .2s var(--e);box-shadow:0 0 12px rgba(196,255,62,.3)"></div></div>
-      <div style="display:flex;justify-content:space-between;font-family:var(--m);font-size:8px;color:var(--t3);margin-top:3px"><span>00</span><span>03</span><span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span></div>
-    </div>`
-  }
+  const chips=isLocked?[]:(isToday
+    ?[['now',_('tpNow')],['nearest',_('tpNearest')],['+15','+15 '+(en?'min':'мин')],['+30','+30 '+(en?'min':'мин')],['+60','+1 '+(en?'h':'ч')]]
+    :[['nearest',_('tpNearest')],['@600','10:00'],['@840','14:00'],['@1080','18:00'],['@1260','21:00']])
 
-  // ── Занятые брони список (компактно, макс 3) ──
-  let occupiedHTML=''
-  if(occupiedList.length){
-    const shown=occupiedList.slice(0,3)
-    occupiedHTML=`<div style="margin-top:12px"><div style="font-size:10px;color:var(--t2);margin-bottom:7px;text-transform:uppercase;letter-spacing:1px;font-weight:600">🔒 Занято на ${pcLabel}</div>`
-    shown.forEach(o=>{
-      occupiedHTML+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 13px;background:linear-gradient(135deg,rgba(255,63,96,.1),rgba(255,63,96,.03));border:1px solid rgba(255,63,96,.18);border-radius:11px;margin-bottom:6px">
-        <span style="color:var(--red);font-family:var(--m);font-weight:700;font-size:13px;text-shadow:0 0 8px rgba(255,63,96,.4)">${o.start}–${o.end}</span>
-        <span style="color:var(--t2);font-size:11px;margin-left:auto">занято</span>
-      </div>`
-    })
-    if(occupiedList.length>3)occupiedHTML+=`<div style="font-size:10px;color:var(--t3);text-align:center;padding:4px">и ещё ${occupiedList.length-3}</div>`
-    occupiedHTML+=`</div>`
-  }
-
-  // ── Основной HTML ──
   w.innerHTML=`<div class="SL">${_('timeLbl')}</div>
   ${timeBadge}
-  ${gizmoWarn}
-  <div class="TB2">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));border:1px solid var(--b1)">
-      <div><div style="font-size:10px;color:var(--t2);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">${_('begin')}</div><div style="font-family:var(--m);font-size:38px;font-weight:700;color:${z.color};line-height:1;text-shadow:0 0 18px ${z.color}55" id="ts-s">${fmt(sh)}</div></div>
-      <div style="font-size:22px;color:${z.color};opacity:.5;padding-top:16px">→</div>
-      <div style="text-align:right"><div style="font-size:10px;color:var(--t2);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">${_('end')}</div><div style="font-family:var(--m);font-size:38px;font-weight:700;line-height:1;color:var(--txt);text-shadow:0 0 18px rgba(255,255,255,.2)" id="ts-e">${endStr()}</div></div>
+  ${liveCard}
+  <div class="TB2 tp">
+    <div class="tp-head">
+      <label class="tp-big">
+        <span class="tp-k">${_('begin')}</span>
+        <span class="tp-v" id="ts-s" style="color:${z.color}">${minToHM(sm)}</span>
+        ${isLocked?'':`<input type="time" step="60" id="tp-inp" aria-label="${_('tpPick')}">`}
+      </label>
+      <div class="tp-mid"><span class="tp-dur">${fmtDur(durMin)}</span><span class="tp-arrow">→</span></div>
+      <div class="tp-big tp-end">
+        <span class="tp-k">${_('end')}</span>
+        <span class="tp-v" id="ts-e">${minToHM(endOf(sm))}</span>
+        <span class="tp-day" id="ts-e-day"></span>
+      </div>
     </div>
-    ${timelineHTML}
-    ${isLocked?'':`<input type="range" min="0" max="23" value="${sh}" id="tsr" style="--p:${Math.round(sh/23*100)}%;margin-top:8px">
-    <div style="display:flex;justify-content:space-between;font-family:var(--m);font-size:9px;color:var(--t3)"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>`}
-    <div style="margin-top:12px;padding:11px 14px;background:var(--s3);border-radius:11px;display:flex;justify-content:space-between;font-size:12px">
-      <span style="color:var(--t2)">${_('pkgLbl')}</span><span style="font-weight:600">${D.lang==='en'?p.nen:p.n} · ${h}h</span>
+    ${isLocked?'':`
+    <div id="tp-ruler" aria-label="${_('tpStart')}"></div>
+    <div class="tp-row">
+      <button type="button" class="tp-step" id="tp-m" aria-label="−1 мин">−</button>
+      <div class="tp-chips">${chips.map(([k,t])=>`<button type="button" class="tp-chip" data-k="${k}">${t}</button>`).join('')}</div>
+      <button type="button" class="tp-step" id="tp-p" aria-label="+1 мин">+</button>
     </div>
+    <div class="tp-hint">${en?'Swipe the tape · ± — by a minute · tap the time to type it':'Листай ленту · ± — по минуте · нажми на время, чтобы ввести точно'}</div>`}
+    <div id="tp-warn"></div>
+    <div class="tp-pkg"><span>${_('pkgLbl')}</span><b>${en?p.nen:p.n} · <span style="color:${z.color}">${p.p} BYN</span></b></div>
     ${occupiedHTML}
-    <div id="conflict-warn" style="display:none;margin-top:10px;gap:8px;padding:10px 13px;border-radius:10px;background:rgba(255,63,96,.08);border:1px solid rgba(255,63,96,.2);font-size:11px">
-      <span>❌</span><span style="color:var(--red)" id="conflict-msg">Это время уже занято</span>
-    </div>
   </div><div style="height:14px"></div>
   <button class="BTN" id="tc" style="background:${z.color};color:#000">${_('cont')}</button>`
   addBack(w)
 
-  // ── Обновление маркера и проверка конфликтов ──
-  function updateMarker(){
-    if(isLocked)return
-    const marker=w.querySelector('#sel-marker')
-    const conflictEl=w.querySelector('#conflict-warn')
-    const conflictMsg=w.querySelector('#conflict-msg')
-    const btn=w.querySelector('#tc')
-    if(!marker)return
+  const btn=w.querySelector('#tc')
+  let ruler=null
 
-    const left=(sh/24*100)
-    const width=(h/24*100)
-    marker.style.left=left+'%'
-    marker.style.width=width+'%'
-
-    // Проверяем конфликт
-    const hasConflict=!isSlotFree(sh,h)
-    if(hasConflict){
-      marker.style.background='rgba(255,63,96,.3)'
-      marker.style.borderColor='var(--red)'
-      marker.style.boxShadow='0 0 12px rgba(255,63,96,.3)'
-      if(conflictEl)conflictEl.style.display='flex'
-      const blocking=getBookingAt(sh)
-      const isPast=isHourPast(sh)
-      if(conflictMsg){
-        if(isPast)conflictMsg.textContent='Это время уже прошло — выбери позже'
-        else if(blocking)conflictMsg.textContent=`${pcLabel} занят ${blocking.start}–${blocking.end}`
-        else conflictMsg.textContent='Это время недоступно'
-      }
-      if(btn){btn.disabled=true;btn.style.opacity='.3'}
+  function upd(){
+    const e=endOf(sm)
+    w.querySelector('#ts-s').textContent=minToHM(sm)
+    w.querySelector('#ts-e').textContent=minToHM(e)
+    const dEl=w.querySelector('#ts-e-day')
+    if(dEl)dEl.textContent=Math.floor((e-1)/1440)>day?(en?'next day':'следующий день'):''
+    const inp=w.querySelector('#tp-inp');if(inp)inp.value=minToHM(sm)
+    const blk=blockerFor(sm,e)
+    const warn=w.querySelector('#tp-warn')
+    if(ruler){
+      const segs=busy.map(r=>({from:r[0],to:r[1],cls:'busy'}))
+      segs.push({from:sm,to:e,cls:'sel'+(blk?' bad':'')})
+      ruler.setSegments(segs)
+    }
+    if(blk){
+      const free=firstFree(sm)
+      const isLive=live.state==='busy'&&blk[0]<=clubNow().abs
+      const why=isLive
+        ?(en?`${pcLabel} is in use until ${minToHM(blk[1])}`:`${pcLabel} занят в клубе до ${minToHM(blk[1])}`)
+        :(en?`${pcLabel} is booked ${minToHM(blk[0])}–${minToHM(blk[1])}`:`${pcLabel} занят ${minToHM(blk[0])}–${minToHM(blk[1])}`)
+      const canFix=!isLocked&&free<=maxStart
+      warn.innerHTML=`<div class="tp-warn"><span>❌ ${why}</span>${canFix?`<button type="button" data-fix="${free}">${en?'From':'С'} ${minToHM(free)}</button>`:''}</div>`
+      btn.disabled=true
     }else{
-      marker.style.background='rgba(196,255,62,.35)'
-      marker.style.borderColor='var(--lime)'
-      marker.style.boxShadow='0 0 12px rgba(196,255,62,.3)'
-      if(conflictEl)conflictEl.style.display='none'
-      if(btn){btn.disabled=false;btn.style.opacity='1'}
+      warn.innerHTML=''
+      btn.disabled=false
     }
-  }
-  updateMarker()
-
-  // ── Клик по шкале ──
-  const bar=w.querySelector('#timeline-bar')
-  if(bar&&!isLocked){
-    bar.onclick=(e)=>{
-      const rect=bar.getBoundingClientRect()
-      const x=e.clientX-rect.left
-      const newH=Math.floor(x/rect.width*24)
-      if(newH>=0&&newH<=23){
-        sh=newH;D.bk.sh=sh
-        w.querySelector('#ts-s').textContent=fmt(sh)
-        w.querySelector('#ts-e').textContent=fmt(Math.min(sh+h,24))
-        const sl=w.querySelector('#tsr');if(sl){sl.value=sh;sl.style.setProperty('--p',Math.round(sh/23*100)+'%')}
-        updateMarker()
-      }
-    }
+    if(!isLocked){D.bk.sm=sm;D.bk.smDay=day;D.bk.sh=Math.floor((sm-dayStart)/60)}
   }
 
-  // ── Слайдер ──
   if(!isLocked){
-    const sl=w.querySelector('#tsr')
-    if(sl) sl.oninput=()=>{
-      sh=+sl.value;D.bk.sh=sh
-      w.querySelector('#ts-s').textContent=fmt(sh)
-      w.querySelector('#ts-e').textContent=isNightPkg?'08:00':fmt(Math.min(sh+h,24))
-      sl.style.setProperty('--p',Math.round(sh/23*100)+'%')
-      updateMarker()
-    }
+    ruler=new TimeRuler(w.querySelector('#tp-ruler'),{px:3,onInput:v=>{sm=v;upd()}})
+    ruler.setRange(minStart,maxStart)
+    ruler.set(sm)
+    const set=(v,smooth=true)=>{sm=clampS(v);ruler.set(sm,smooth);upd()}
+    holdRepeat(w.querySelector('#tp-m'),c=>{set(sm-(c>12?5:1),false);haptic('tick')})
+    holdRepeat(w.querySelector('#tp-p'),c=>{set(sm+(c>12?5:1),false);haptic('tick')})
+    w.querySelectorAll('.tp-chip').forEach(c=>c.onclick=()=>{
+      const k=c.dataset.k,n=clubNow().abs
+      if(k==='now')set(n)
+      else if(k==='nearest')set(firstFree(isToday?n:dayStart))
+      else if(k[0]==='+')set(n+parseInt(k.slice(1)))
+      else if(k[0]==='@')set(dayStart+parseInt(k.slice(1)))
+      haptic('light')
+    })
+    const inp=w.querySelector('#tp-inp')
+    inp.addEventListener('click',()=>{try{inp.showPicker()}catch(e){}})
+    inp.addEventListener('change',()=>{
+      if(!inp.value)return
+      const v=dayStart+timeToMinJS(inp.value)
+      if(v<minStart){toast(en?'This time has passed':'Это время уже прошло','⏰');set(minStart);return}
+      set(v)
+    })
   }
-  w.querySelector('#tc').onclick=()=>{
-    if(!isSlotFree(sh,h)&&!isLocked){toast('❌ Выбранное время занято — сдвинь слайдер','❌');return}
+  w.addEventListener('click',e=>{
+    const f=e.target.closest('[data-fix]');if(!f)return
+    sm=clampS(+f.dataset.fix);if(ruler)ruler.set(sm,true);upd();haptic('light')
+  })
+  upd()
+
+  btn.onclick=()=>{
+    if(btn.disabled){toast(en?'❌ This time is taken':'❌ Это время занято — сдвинь ленту','❌');return}
     D.bk.step=4;renderStep()
   }
 }
+
 function sConfirm(w,z){
-  const bk=D.bk,p=bk.pkg,h=p.h,en=Math.min(bk.sh+h,24)
-  const timeStr=p.locked?p.t:`${fmt(bk.sh)} – ${fmt(en)}`
+  const bk=D.bk,p=bk.pkg,h=p.h
+  const day=dayNumOf(bk.date.v)
+  const [startAbs,endAbs]=bkRange()
+  const bkStart=minToHM(startAbs),bkEnd=minToHM(endAbs)
+  const nextDay=Math.floor((endAbs-1)/1440)>day
+  const timeStr=p.locked?p.t:`${bkStart} – ${bkEnd}${nextDay?(D.lang==='en'?' (+1 day)':' (+1 день)'):''}`
   const rows=[
     [_('zone'),`${z.emoji} ${z.name}`],[_('pcLbl'),bk.pc.lbl],
     [_('pkgLbl'),`${D.lang==='en'?p.nen:p.n} (${h}h)`],
     [_('dateLbl'),bk.date.v],[_('timeLbl'),timeStr]
   ]
-  const lockedWarn=p.locked?`<div style="display:flex;gap:8px;padding:10px 14px;border-radius:10px;background:rgba(255,202,80,.06);border:1px solid rgba(255,202,80,.2);margin-bottom:12px;font-size:11px">
-    <span>⚠️</span><span style="color:var(--gold)">Пакет действует только <b>${p.t}</b> — убедись что придёшь вовремя</span>
-  </div>`:''
+  const lockedWarn=p.locked?`<div class="warn-gold"><span>⚠️</span><span>Пакет действует только <b>${p.t}</b> — убедись что придёшь вовремя</span></div>`:''
+  const startsIn=startAbs-clubNow().abs
+  const whenHint=startsIn>0&&startsIn<36*60?`<div class="when-hint">⏱ ${D.lang==='en'?'Starts in':'До начала'} <b>${fmtDur(startsIn)}</b></div>`:''
   w.innerHTML=`<div class="SL">${_('stepSum')}</div>
   ${lockedWarn}
   <div class="CRD" style="border-color:rgba(255,255,255,.09)">
     <div class="cbar" style="background:${z.stripe}"></div>
     ${rows.map(([k,v])=>`<div class="RW"><span class="K">${k}</span><span class="V" style="font-family:var(--m);font-size:12px">${v}</span></div>`).join('')}
   </div>
+  ${whenHint}
   <!-- Итоговая цена -->
-  <div style="margin-top:12px;padding:18px 20px;border-radius:var(--R);background:linear-gradient(135deg,${z.color}1f,${z.color}08);border:1px solid ${z.color}40;display:flex;justify-content:space-between;align-items:center">
-    <div><div style="font-size:11px;color:var(--t2);letter-spacing:1px;text-transform:uppercase">${_('totalLbl')}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">${h} ${h===1?'час':'часов'} игры</div></div>
-    <div style="font-family:var(--F);font-size:34px;font-weight:800;color:${z.color};text-shadow:0 0 20px ${z.color}66;line-height:1">${p.p}<span style="font-size:15px;margin-left:3px">BYN</span></div>
+  <div class="sum-card" style="background:linear-gradient(135deg,${zA(z,.12)},${zA(z,.03)});border-color:${zA(z,.25)}">
+    <div><div class="sum-k">${_('totalLbl')}</div><div class="sum-s">${h} ${hoursWord(h)} игры</div></div>
+    <div class="sum-v" style="color:${z.color};text-shadow:0 0 20px ${zA(z,.4)}">${p.p}<span>BYN</span></div>
   </div>
   <div style="height:14px"></div>
-  <button class="BTN" id="cb" style="background:${z.color};color:#000;box-shadow:0 6px 28px ${z.color}44">${_('bookNow')}</button>`
+  <button class="BTN" id="cb" style="background:${z.color};color:#000;box-shadow:0 6px 28px ${zA(z,.27)}">${_('bookNow')}</button>`
   addBack(w)
   w.querySelector('#cb').onclick=async()=>{
     // Проверяем номер телефона — обязателен, +375
@@ -485,34 +401,15 @@ function sConfirm(w,z){
     }
     const btn=w.querySelector('#cb');btn.innerHTML='<span class="spin"></span>';btn.disabled=true
     try{
-      // Для locked пакетов используем tStart/tEnd, для ночного tEnd < tStart
-      const isNightPkg=p.locked&&p.tEnd!==undefined&&p.tEnd<=p.tStart
-      const bkStart=p.locked?fmt(p.tStart):fmt(bk.sh)
-      const bkEnd=p.locked?(isNightPkg?fmt(p.tEnd):fmt(p.tEnd)):fmt(en)
-
-      // 🔒 ФИНАЛЬНАЯ ПРОВЕРКА — загружаем свежие брони прямо перед бронированием
+      // 🔒 ФИНАЛЬНАЯ ПРОВЕРКА — свежие брони и живой статус прямо перед бронированием
       try{
-        const freshAll=await loadBookings(null, null, true)
-        const normD2=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-        const freshBookings=freshAll.filter(fb=>normD2(fb.date)===normD2(bk.date.v))
-        const startMin=timeToMinJS(bkStart),endMin=timeToMinJS(bkEnd)
-        const isNightBk=endMin<=startMin
-        const conflict=freshBookings.find(b=>{
-          if(b.pc!==bk.pc.lbl||b.status==='cancelled')return false
-          const bs=timeToMinJS(b.start),be=timeToMinJS(b.end)
-          const rNight=be<=bs
-          // Обе ночные = конфликт
-          if(isNightBk&&rNight) return true
-          // Ночная vs дневная
-          if(isNightBk&&!rNight) return bs>=startMin||be>startMin
-          if(!isNightBk&&rNight) return startMin>=bs||endMin>bs
-          // Обе дневные
-          return startMin<be&&endMin>bs
-        })
-        if(conflict){
+        const [,freshAll]=await Promise.all([loadGizmoStatus(),loadBookings(null,null,true)])
+        const blk=pcBusyRanges(bk.pc.lbl,freshAll).find(r=>rangesOverlap(r,[startAbs,endAbs]))
+        if(blk){
           btn.innerHTML=_('bookNow');btn.disabled=false
-          toast(`❌ ${bk.pc.lbl} уже забронирован ${conflict.start}-${conflict.end}`,'❌')
+          toast(`❌ ${bk.pc.lbl} занят ${minToHM(blk[0])}–${minToHM(blk[1])}`,'❌')
           btn.classList.add('shake');setTimeout(()=>btn.classList.remove('shake'),400)
+          haptic('err')
           return
         }
       }catch(e){}
@@ -534,8 +431,9 @@ function sConfirm(w,z){
         btn.innerHTML=_('bookNow');btn.disabled=false
         toast(checkRes.conflict
           ? `❌ ${checkRes.error}`
-          : `⚠️ Ошибка при бронировании`, '❌')
+          : `⚠️ ${checkRes.error||'Ошибка при бронировании'}`, '❌')
         btn.classList.add('shake');setTimeout(()=>btn.classList.remove('shake'),400)
+        haptic('err')
         return
       }
       // Успех — сохраняем локально
@@ -546,11 +444,12 @@ function sConfirm(w,z){
       // ⭐ Баллы начисляются СЕРВЕРОМ — просто читаем ответ
       if(checkRes.points&&checkRes.points.earned>0){
         D.user.pts=checkRes.points.balance;sv()
-        setTimeout(()=>toast(`⭐ +${checkRes.points.earned} баллов (${checkRes.points.tags})`,'⭐'),1000)
+        setTimeout(()=>toast(`+${checkRes.points.earned} баллов (${checkRes.points.tags})`,'⭐'),1000)
       } else if(checkRes.pointsMsg){
         setTimeout(()=>toast(checkRes.pointsMsg,'ℹ️'),1200)
       }
       sv()
+      haptic('ok')
       const ok=document.getElementById('ok-card')
       ok.innerHTML=`<div class="cbar" style="background:${z.stripe}"></div>${rows.map(([k,v])=>`<div class="RW"><span class="K">${k}</span><span class="V" style="font-family:var(--m);font-size:12px">${v}</span></div>`).join('')}`
       document.querySelectorAll('#ok [data-i]').forEach(el=>{const v=I18N[D.lang][el.dataset.i];if(v)el.textContent=v})
@@ -602,6 +501,6 @@ function saveContact(){
 
 function addBack(w){
   const d=document.createElement('div');d.style.cssText='margin-top:10px;padding-bottom:4px'
-  d.innerHTML=`<button class="BTN ghost" onclick="bkBack()" style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:16px">←</span>${_('back')}</button>`;w.appendChild(d)
+  d.innerHTML=`<button class="BTN ghost" onclick="bkBack()">${_('back')}</button>`;w.appendChild(d)
 }
 function bkBack(){if(D.bk&&D.bk.step>0){D.bk.step--;renderStep()}else go('home')}

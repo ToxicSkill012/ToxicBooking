@@ -55,6 +55,8 @@ ru:{
   promoCreated:'Промокод создан!',promoDel:'Промокод удалён',promoExists:'Такой код уже есть',
   enterCode:'Введи код промокода',enterName:'Введи имя',snakeSub:'Мини-игра · Убей время пока ждёшь',snakeInstr:'Свайп или стрелки для управления',syncBtn:'Синхронизировать',testBotBtn:'Проверить Telegram бота',
   onPills:'ВКЛ',offPills:'ВЫКЛ',usesLeft:'активаций',
+  hallTitle:'Зал сейчас',hallFree:'свободен',hallSoon:'скоро бронь',hallBusy:'занят · осталось',
+  tpStart:'Начало',tpEnd:'Конец',tpNow:'Сейчас',tpNearest:'⚡ Ближайшее',tpPick:'Точное время',tpBusyFill:'занято',tpFree:'свободно',
 },
 zh:{
   loginBtn:'通过Telegram登录',loginNote:'登录即表示您接受俱乐部规则',
@@ -107,6 +109,8 @@ zh:{
   enterCode:'输入优惠码',enterName:'输入姓名',enterPhone:'请输入电话号码',
   snakeSub:'小游戏 · 等待时间打发',snakeInstr:'滑动或使用方向键',syncBtn:'同步',testBotBtn:'检查 Telegram 机器人',
   onPills:'开',offPills:'关',usesLeft:'次使用',
+  hallTitle:'实时大厅',hallFree:'空闲',hallSoon:'即将预订',hallBusy:'占用 · 剩余',
+  tpStart:'开始',tpEnd:'结束',tpNow:'现在',tpNearest:'⚡ 最近',tpPick:'精确时间',tpBusyFill:'已占用',tpFree:'空闲',
   bonusInfo:'积分说明',
 },
 en:{
@@ -160,4 +164,6 @@ en:{
   promoCreated:'Promo code created!',promoDel:'Promo code deleted',promoExists:'Code already exists',
   enterCode:'Enter promo code',enterName:'Enter your name',snakeSub:'Mini-game · Kill time while waiting',snakeInstr:'Swipe or arrow keys to control',syncBtn:'Sync',testBotBtn:'Test Telegram bot',
   onPills:'ON',offPills:'OFF',usesLeft:'uses left',
+  hallTitle:'Hall now',hallFree:'free',hallSoon:'booked soon',hallBusy:'busy · time left',
+  tpStart:'Start',tpEnd:'End',tpNow:'Now',tpNearest:'⚡ Nearest',tpPick:'Exact time',tpBusyFill:'busy',tpFree:'free',
 }}

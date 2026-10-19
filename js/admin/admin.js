@@ -92,9 +92,9 @@ async function adminMaintToggle(){
 // ── АДМИН: БРОНИ СЕГОДНЯ// ── АДМИН: БРОНИ СЕГОДНЯ (управление залом) ──
 async function renderAdminToday(){
   const box=document.getElementById('adm-today');if(!box||!isAdmin())return
-  let all=[];try{all=await loadBookings(null,null,false)}catch(e){}
+  let all=[];try{all=await loadAdminBookings()}catch(e){}
   const normD=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-  const today=normD(fmtDateJS(new Date()))
+  const today=normD(clubNow().date)
   const list=all.filter(b=>normD(b.date)===today&&b.status!=='cancelled'&&b.status!=='completed')
     .sort((a,b)=>timeToMinJS(a.start)-timeToMinJS(b.start))
   if(!list.length){box.innerHTML='<div style="text-align:center;color:var(--t3);font-size:11px;padding:14px;border-radius:14px;background:var(--s1);border:1px dashed var(--b1)">Сегодня броней пока нет</div>';return}
@@ -203,7 +203,7 @@ function renderAdmClient(){
 }
 async function fillAdmHist(tgId){
   const h=document.getElementById('adm-hist');if(!h)return
-  let all=[];try{all=await loadBookings(null,null,false)}catch(e){}
+  let all=[];try{all=await loadAdminBookings(true)}catch(e){}
   const mine=all.filter(b=>String(b.tgId)===String(tgId))
     .sort((a,b)=>{const p=s=>{const x=String(s.date).split('.');return x.length===3?(+x[2])*10000+(+x[1])*100+(+x[0]):0};return p(b)-p(a)})
     .slice(0,4)
@@ -276,11 +276,11 @@ async function adminToggleBan(){
 // ── ДАШБОРД ВЛАДЕЛЬЦА: бизнес-статистика ──
 async function renderAdminDash(){
   const box=document.getElementById('admin-dash');if(!box||!isAdmin())return
-  let all=[];try{all=await loadBookings(null,null,false)}catch(e){}
+  let all=[];try{all=await loadAdminBookings(true)}catch(e){}
   const normD=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-  const today=normD(fmtDateJS(new Date()))
+  const today=normD(clubNow().date)
   // Неделя — последние 7 дат
-  const weekDates=[];for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);weekDates.push(normD(fmtDateJS(d)))}
+  const weekDates=[];for(let i=0;i<7;i++){weekDates.push(normD(dateOfDayNum(clubNow().day-i)))}
   const active=all.filter(b=>b.status!=='cancelled'&&b.status!=='completed'||true) // все для статистики
   const valid=all.filter(b=>b.status!=='cancelled')
 
@@ -306,7 +306,7 @@ async function renderAdminDash(){
 
   const zoneBar=(name,key,color)=>{
     const cnt=zoneCount[key],tot=zoneTotal[key],pct=Math.min(100,Math.round(cnt/tot*100))
-    return `<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--t2)">${name}</span><span style="color:${color};font-family:var(--m);font-weight:700">${cnt}/${tot}</span></div><div style="height:6px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:4px;box-shadow:0 0 8px ${color}66;transition:width .5s"></div></div></div>`
+    return `<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--t2)">${name}</span><span style="color:${color};font-family:var(--m);font-weight:700">${cnt}/${tot}</span></div><div style="height:6px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:4px;box-shadow:0 0 8px ${zA(key,.4)};transition:width .5s"></div></div></div>`
   }
 
   box.innerHTML=`

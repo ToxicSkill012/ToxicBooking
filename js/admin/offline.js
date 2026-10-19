@@ -2,13 +2,18 @@
 
 // ═══ АДМИН: ОФФЛАЙН-БРОНЬ ═══
 const AB_PREFIX={std:'ST',vip:'VIP',bc:'BC'},AB_COUNT={std:13,vip:3,bc:5}
-let _abZone='std',_abTime=18,_abDur=1,_abPcs=[]
+let _abZone='std',_abTime=18,_abMin=18*60,_abDur=1,_abPcs=[],_abTF=null
 function openAdminBooking(){
   if(!isAdmin()){toast('Только для админа','🔒');return}
-  const d=new Date(),di=document.getElementById('ab-date')
-  if(di){di.min=d.toISOString().split('T')[0];di.value=d.toISOString().split('T')[0]}
-  _abZone='std';_abTime=Math.min(22,new Date().getHours()+1);_abDur=1;_abPcs=[]
-  const tEl=document.getElementById('ab-time');if(tEl)tEl.textContent=(_abTime<10?'0':'')+_abTime+':00'
+  const di=document.getElementById('ab-date')
+  if(di){di.min=clubIsoDate();di.value=clubIsoDate()}
+  // Клиент пришёл «прямо сейчас» — старт с текущей минуты
+  _abZone='std';_abMin=clubNow().min;_abTime=Math.floor(_abMin/60);_abDur=1;_abPcs=[]
+  const tEl=document.getElementById('ab-time')
+  if(tEl){
+    if(!_abTF)_abTF=timeField(tEl,{value:_abMin,onChange:v=>{_abMin=v;_abTime=Math.floor(v/60);loadAdminPcs()}})
+    else _abTF.set(_abMin)
+  }
   document.getElementById('ab-name').value=''
   adminSelectZone('std');adminSelectDur(1)
   openM('admin-book-m')
@@ -24,30 +29,20 @@ function adminSelectDur(h){
   loadAdminPcs()
 }
 function abTimeStep(d){
-  _abTime=Math.max(0,Math.min(23,_abTime+d))
-  const tEl=document.getElementById('ab-time');if(tEl)tEl.textContent=(_abTime<10?'0':'')+_abTime+':00'
+  _abMin=((_abMin+d*60)%1440+1440)%1440;_abTime=Math.floor(_abMin/60)
+  if(_abTF)_abTF.set(_abMin)
   loadAdminPcs()
 }
 async function loadAdminPcs(){
   const grid=document.getElementById('ab-pc-grid');if(!grid)return
   const di=document.getElementById('ab-date'),date=di?di.value:''
   if(!date){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);font-size:11px;padding:14px">Выбери дату</div>';return}
-  const d=new Date(date),dateStr=fmtDateJS(d)
+  const dateStr=isoToRuDate(date)
   const pre=AB_PREFIX[_abZone],count=AB_COUNT[_abZone]
-  const startMin=_abTime*60,endMin=startMin+_abDur*60
+  const mine=bookingAbsRange(dateStr,minToHM(_abMin),minToHM(_abMin+_abDur*60))
   let allBks=[];try{allBks=await loadBookings(null,null,false)}catch(e){}
-  const normD=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-  const dayBks=allBks.filter(b=>normD(b.date)===normD(dateStr)&&b.status!=='cancelled'&&b.status!=='completed')
-  const isOcc=(lbl)=>{
-    for(const b of dayBks){
-      if(b.pc!==lbl)continue
-      const bs=timeToMinJS(b.start),be=timeToMinJS(b.end),rN=be<=bs,mN=endMin<=startMin
-      let ov;if(mN&&rN)ov=true;else if(mN&&!rN)ov=(bs>=startMin||be>startMin);else if(!mN&&rN)ov=(startMin>=bs||endMin>bs);else ov=(startMin<be&&endMin>bs)
-      if(ov)return true
-    }
-    if(isGizmoBusy(lbl)===true)return true
-    return false
-  }
+  // Занят = пересекается с бронью (в т.ч. ночной) или с идущей сессией в клубе
+  const isOcc=(lbl)=>pcBusyRanges(lbl,allBks).some(r=>rangesOverlap(r,mine))
   const cell=(num)=>{
     const lbl=pre+'-'+String(num).padStart(2,'0'),busy=isOcc(lbl),sel=_abPcs.includes(lbl)
     const bg=busy?'rgba(255,63,96,.12)':sel?'linear-gradient(160deg,rgba(196,255,62,.18),rgba(196,255,62,.04))':'var(--s3)'
@@ -78,9 +73,9 @@ async function createAdminBooking(){
   const name=document.getElementById('ab-name')?.value.trim()||'Гость (клуб)'
   if(!date){toast('Выбери дату','⚠️');return}
   if(!_abPcs.length){toast('Выбери хотя бы 1 ПК','⚠️');return}
-  const d=new Date(date),dateStr=fmtDateJS(d)
-  const startStr=(_abTime<10?'0':'')+_abTime+':00'
-  const endH=(_abTime+_abDur)%24,endStr=(endH<10?'0':'')+endH+':00'
+  const dateStr=isoToRuDate(date)
+  const startStr=minToHM(_abMin)
+  const endStr=minToHM(_abMin+_abDur*60)
   const zoneKey=_abZone==='bc'?'bootcamp':_abZone
   const prices={std:{1:6,2:11,3:15,5:21},vip:{1:8,2:15,3:20,5:25},bc:{1:8,2:15,3:20,5:25}}
   const price=(prices[_abZone]||prices.std)[_abDur]||6
@@ -109,8 +104,8 @@ async function createAdminBooking(){
 // Список оффлайн-броней в админке
 async function renderAdminOffline(){
   const box=document.getElementById('admin-offline-list');if(!box||!isAdmin())return
-  let all=[];try{all=await loadBookings(null,null,false)}catch(e){}
-  const today=fmtDateJS(new Date())
+  let all=[];try{all=await loadAdminBookings()}catch(e){}
+  const today=clubNow().date
   const normD=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
   const offline=all.filter(b=>String(b.pkg||'').includes('Оффлайн')&&b.status!=='cancelled'&&b.status!=='completed').slice(0,10)
   if(!offline.length){box.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:10px">Нет активных оффлайн-броней</div>';return}

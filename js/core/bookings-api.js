@@ -60,18 +60,14 @@ function countUp(el,target){
 }
 
 async function checkAndBook(booking, _retry){
-  // 🔒 Проверяем Gizmo — если ПК сейчас занят в реале, блокируем
-  const gizmoBusy = isGizmoBusy(booking.pc)
-  if(gizmoBusy === true){
-    return {ok:false, conflict:true, error:booking.pc+' сейчас занят (Gizmo)'}
-  }
+  // Живую сессию Gizmo проверяет сервер — и только если она пересекается с бронью
   try{
     const p = new URLSearchParams({action:'createBooking',_t:Date.now()})
     Object.entries(booking).forEach(([k,v])=>p.append(k,String(v)))
     const res = await fetch(API_URL+'?'+p.toString(), {cache:'no-store'})
     const d = await res.json()
     // ⏳ Сервер временно занят (lock) — тихий авто-повтор один раз
-    if(!d.ok && !_retry && /занят|lock/i.test(String(d.error||''))){
+    if(!d.ok && !d.conflict && !_retry && /сервер занят|lock/i.test(String(d.error||''))){
       await new Promise(r=>setTimeout(r,2500))
       return checkAndBook(booking, true)
     }
@@ -85,6 +81,61 @@ async function checkAndBook(booking, _retry){
     }
     return {ok:false, error:'Нет связи с сервером. Проверь интернет и попробуй снова.'}
   }
+}
+
+// 🔐 Полный список броней (с именами) — только для панели владельца.
+// Старый бэкенд не знает adminBookings — тогда берём общий список.
+async function loadAdminBookings(all=false){
+  const d=await apiGetJSON({action:'adminBookings',all:all?'1':'0',adminKey:D._admKey||''})
+  if(d&&d.ok&&Array.isArray(d.bookings))return d.bookings.filter(b=>all||(b.status!=='offline'&&!String(b.id||'').startsWith('OFF')))
+  return loadBookings(null,null,false)
+}
+
+// 📅 «Мои брони» с сервера: статусы (отменена админом, завершена) и брони с других устройств
+let _myBkSyncTs=0
+async function syncMyBookings(force=false){
+  if(!D.user._tgId||!tgInit())return false
+  if(!force&&Date.now()-_myBkSyncTs<45000)return false
+  _myBkSyncTs=Date.now()
+  const d=await apiGetJSON({action:'getMyBookings'})
+  if(!d||!d.ok||!Array.isArray(d.bookings))return false
+  const byId=new Map(d.bookings.map(b=>[String(b.id),b]))
+  const map={confirmed:'active',gizmo_synced:'active',offline:'active',cancelled:'cancelled',completed:'completed'}
+  let changed=false
+  D.user.bks=(D.user.bks||[]).map(b=>{
+    const s=byId.get(String(b.id))
+    if(!s)return b
+    byId.delete(String(b.id))
+    const st=map[s.status]||b.status
+    if(st!==b.status){changed=true;return {...b,status:st}}
+    return b
+  })
+  // Брони, сделанные с другого устройства
+  byId.forEach(s=>{
+    const zone=s.zone==='bootcamp'?'bc':s.zone
+    const r=bookingAbsRange(s.date,s.start,s.end)||[0,60]
+    D.user.bks.push({id:s.id,zone,pc:s.pc,pkg:s.pkg,date:s.date,start:s.start,end:s.end,h:Math.max(1,Math.round((r[1]-r[0])/60)),price:s.price,status:map[s.status]||'active'})
+    changed=true
+  })
+  if(changed){
+    D.user.bks.sort((a,b)=>((bookingAbsRange(b.date,b.start,b.end)||[0])[0])-((bookingAbsRange(a.date,a.start,a.end)||[0])[0]))
+    sv()
+  }
+  return changed
+}
+
+// Брони, время которых прошло, локально считаем завершёнными (даже без сети)
+function expireLocalBookings(){
+  const now=clubNow().abs
+  let changed=false
+  D.user.bks=(D.user.bks||[]).map(b=>{
+    if(b.status!=='active')return b
+    const r=bookingAbsRange(b.date,b.start,b.end)
+    if(r&&r[1]<=now){changed=true;return {...b,status:'completed'}}
+    return b
+  })
+  if(changed)sv()
+  return changed
 }
 
 // Получить занятые слоты для компа на дату

@@ -74,6 +74,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       // Цвет темы из Telegram
       twa.setHeaderColor('#06060f')
       twa.setBackgroundColor('#06060f')
+      try{twa.setBottomBarColor&&twa.setBottomBarColor('#06060f')}catch(e){}
+      // Кнопка «Назад» Telegram ведёт по шагам брони
+      try{twa.BackButton&&twa.BackButton.onClick(onTgBack)}catch(e){}
     }
   }catch(e){}
   // Apply saved theme (сохраняем onboarding класс)
@@ -100,12 +103,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.addEventListener('online',checkOnline,{passive:true})
   window.addEventListener('offline',checkOnline,{passive:true})
   setInterval(()=>{ if(!document.hidden) idle(checkOnline) },20000)
-  // Gizmo — раз в минуту, и только когда приложение открыто (экономия батареи/сети)
+  // Gizmo — раз в 45 сек, и только когда приложение открыто (экономия батареи/сети)
   idle(loadGizmoStatus)
-  setInterval(()=>{ if(!document.hidden) idle(loadGizmoStatus) },60000)
+  setInterval(()=>{ if(!document.hidden) idle(loadGizmoStatus) },45000)
+  // ⏱ Живые таймеры («ещё 42 мин») — пересчёт раз в 20 сек, без сетевых запросов
+  setInterval(()=>{
+    if(document.hidden)return
+    if(D.cur==='home')renderLive()
+    if(D.cur==='bklist')tickBkList()
+  },20000)
+  // Брони, которые уже прошли, — в историю; статусы — с сервера
+  expireLocalBookings()
+  idle(()=>syncMyBookings(true).catch(()=>{}),3000)
   // Вернулись в приложение — освежаем данные в простое (не блокируя кадр)
   document.addEventListener('visibilitychange',()=>{
-    if(!document.hidden) idle(()=>{ checkOnline(); loadGizmoStatus(); updateGr() })
+    if(!document.hidden) idle(()=>{ checkOnline(); loadGizmoStatus(); updateGr(); if(D.cur==='bklist')renderBkList() })
   },{passive:true})
   // Passive listeners для производительности
   document.addEventListener('touchstart',()=>{},{passive:true})

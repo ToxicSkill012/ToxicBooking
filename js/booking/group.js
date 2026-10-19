@@ -6,15 +6,25 @@ const GRP_PRICES={std:{1:6,3:15,5:21},vip:{1:8,3:20,5:25},bc:{1:8,3:20,5:25}}
 const GRP_NAMES={std:'Standard',vip:'VIP',bc:'Bootcamp'}
 const GRP_PREFIX={std:'ST',vip:'VIP',bc:'BC'}
 const GRP_PCCOUNT={std:13,vip:3,bc:5}
-let _grpZone='std',_grpHrs=1,_grpTime=18,_grpSelectedPcs=[]
+let _grpZone='std',_grpHrs=1,_grpTime=18,_grpMin=18*60,_grpSelectedPcs=[],_grpTF=null
+
+// Сегодня по времени клуба в формате поля <input type="date">
+function clubIsoDate(){const p=clubNow().date.split('.');return p[2]+'-'+p[1]+'-'+p[0]}
+// yyyy-mm-dd → dd.MM.yyyy
+function isoToRuDate(iso){const p=String(iso||'').split('-');return p.length===3?p[2]+'.'+p[1]+'.'+p[0]:''}
 
 function openGroupBooking(){
-  const d=new Date(),di=document.getElementById('grp-date')
-  if(di){di.min=d.toISOString().split('T')[0];di.value=d.toISOString().split('T')[0]}
+  const di=document.getElementById('grp-date')
+  if(di){di.min=clubIsoDate();di.value=clubIsoDate()}
   const ni=document.getElementById('grp-name')
   if(ni&&D.user.name)ni.value=D.user.name+(D.user.phone?' · '+D.user.phone:'')
-  _grpZone='std';_grpHrs=1;_grpTime=Math.min(22,new Date().getHours()+1);_grpSelectedPcs=[]
-  const tEl=document.getElementById('grp-time');if(tEl)tEl.textContent=(_grpTime<10?'0':'')+_grpTime+':00'
+  // Время прихода — ближайшие 15 минут, дальше настраивается поминутно
+  _grpZone='std';_grpHrs=1;_grpMin=Math.min(1439,Math.ceil((clubNow().min+15)/5)*5);_grpTime=Math.floor(_grpMin/60);_grpSelectedPcs=[]
+  const tEl=document.getElementById('grp-time')
+  if(tEl){
+    if(!_grpTF)_grpTF=timeField(tEl,{value:_grpMin,onChange:v=>{_grpMin=v;_grpTime=Math.floor(v/60);loadGroupPcs()}})
+    else _grpTF.set(_grpMin)
+  }
   selectGroupZone('std');selectGroupPkg(1)
   openM('group-m')
 }
@@ -33,10 +43,9 @@ function selectGroupZone(zone){
   updateGroupPrice()
 }
 function grpTimeStep(d){
-  _grpTime=Math.max(0,Math.min(23,_grpTime+d))
-  const tEl=document.getElementById('grp-time')
-  if(tEl)tEl.textContent=(_grpTime<10?'0':'')+_grpTime+':00'
-  if(window.navigator.vibrate)try{navigator.vibrate(8)}catch(e){}
+  _grpMin=((_grpMin+d*60)%1440+1440)%1440;_grpTime=Math.floor(_grpMin/60)
+  if(_grpTF)_grpTF.set(_grpMin)
+  haptic('tick')
   loadGroupPcs()
 }
 function selectGroupPkg(hrs){
@@ -60,34 +69,18 @@ async function loadGroupPcs(){
   grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);font-size:11px;padding:14px"><span class="spin"></span></div>'
 
   // Дата в формате dd.MM.yyyy
-  const d=new Date(date)
-  const dateStr=fmtDateJS(d)
+  const dateStr=isoToRuDate(date)
   const pre=GRP_PREFIX[_grpZone],count=GRP_PCCOUNT[_grpZone]
-  const startMin=_grpTime*60,endMin=startMin+_grpHrs*60
+  const startStr=minToHM(_grpMin),endStr=minToHM(_grpMin+_grpHrs*60)
+  const mine=bookingAbsRange(dateStr,startStr,endStr)
 
   // Грузим брони
   let allBks=[]
   try{allBks=await loadBookings(null,null,false)}catch(e){}
-  const normD=s=>String(s||'').replace(/\s.*/,'').trim().replace(/\b0(\d)/g,'$1')
-  const dayBks=allBks.filter(b=>normD(b.date)===normD(dateStr)&&b.status!=='cancelled'&&b.status!=='completed')
 
-  // Строим сетку
+  // Строим сетку: занят = пересекается с бронью (в т.ч. ночной) или с идущей сессией в клубе
   const grid2=document.getElementById('grp-pc-grid')
-  const isOccupied=(lbl)=>{
-    for(const b of dayBks){
-      if(b.pc!==lbl)continue
-      const bs=timeToMinJS(b.start),be=timeToMinJS(b.end)
-      const rNight=be<=bs,myNight=endMin<=startMin
-      let overlap
-      if(myNight&&rNight)overlap=true
-      else if(myNight&&!rNight)overlap=(bs>=startMin||be>startMin)
-      else if(!myNight&&rNight)overlap=(startMin>=bs||endMin>bs)
-      else overlap=(startMin<be&&endMin>bs)
-      if(overlap)return true
-    }
-    if(isGizmoBusy(lbl)===true)return true
-    return false
-  }
+  const isOccupied=(lbl)=>pcBusyRanges(lbl,allBks).some(r=>rangesOverlap(r,mine))
   const cellHtml=(num)=>{
     const lbl=pre+'-'+String(num).padStart(2,'0')
     const busy=isOccupied(lbl)
@@ -145,10 +138,10 @@ async function bookGroupPcs(){
   if(!date){toast('Выбери дату','⚠️');return}
   if(_grpSelectedPcs.length===0){toast('Выбери хотя бы 1 ПК','⚠️');return}
   if(!name){toast('Укажи имя и телефон','⚠️');return}
-  // Прошедшее время сегодня — не даём отправить
+  // Прошедшее время сегодня — не даём отправить (по времени клуба)
   {
-    const today=new Date(),sel=new Date(date)
-    if(sel.toDateString()===today.toDateString()&&_grpTime<today.getHours()){
+    const r=bookingAbsRange(isoToRuDate(date),minToHM(_grpMin),minToHM(_grpMin+_grpHrs*60))
+    if(r&&r[0]<clubNow().abs-5){
       toast('Это время уже прошло — выбери позже','⏰');return
     }
   }
@@ -159,9 +152,9 @@ async function bookGroupPcs(){
   const btn=document.getElementById('grp-book-btn')
   if(btn){btn.innerHTML='<span class="spin"></span>';btn.disabled=true}
 
-  const d=new Date(date),dateStr=fmtDateJS(d)
-  const startStr=(_grpTime<10?'0':'')+_grpTime+':00'
-  const endH=(_grpTime+_grpHrs)%24,endStr=(endH<10?'0':'')+endH+':00'
+  const dateStr=isoToRuDate(date)
+  const startStr=minToHM(_grpMin)
+  const endStr=minToHM(_grpMin+_grpHrs*60)
   const zoneKey=_grpZone==='bc'?'bootcamp':_grpZone
   const perPc=(GRP_PRICES[_grpZone]||GRP_PRICES.std)[_grpHrs]||6
 
@@ -192,7 +185,7 @@ async function bookGroupPcs(){
 
   // Баллы (1 раз) + TG админу — фоном (fire-and-forget)
   if(D.user._tgId){
-    fetch(API_URL+'?'+new URLSearchParams({action:'awardGroupPoints',tgId:D.user._tgId,user:name,zone:_grpZone,hours:_grpHrs,isTg:'1',_t:Date.now()}))
+    fetch(API_URL+'?'+new URLSearchParams({action:'awardGroupPoints',tgId:D.user._tgId,user:D.user.name||name,zone:_grpZone,hours:_grpHrs,isTg:'1',_t:Date.now()}))
       .then(r=>r.json()).then(pd=>{if(pd&&pd.ok&&pd.balance!=null){D.user.pts=pd.balance;sv();if(D.cur==='profile')renderProfile()}}).catch(()=>{})
   }
   const msg='👥 <b>ГРУППОВАЯ БРОНЬ!</b>\n\n👤 <b>'+name+'</b>\n🆔 TG: '+(D.user._tgId||'—')+'\n\n🖥 <b>'+booked.length+' ПК</b> · '+GRP_NAMES[_grpZone]+'\n'+booked.join(', ')+'\n⏱ '+startStr+'–'+endStr+' ('+_grpHrs+'ч)\n📆 '+dateStr+'\n💰 итого '+(perPc*booked.length)+' BYN\n#групповое'

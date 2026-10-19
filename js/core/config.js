@@ -3,6 +3,9 @@
 // ═══════════════════════════════════════════════
 // ZONE DATA
 // ═══════════════════════════════════════════════
+// Цвет зоны с прозрачностью: «var(--lime)»+«33» — невалидный CSS, поэтому через rgba
+const ZONE_RGB={std:'196,255,62',vip:'255,202,80',bc:'75,158,255',bootcamp:'75,158,255'}
+function zA(z,a){const rgb=ZONE_RGB[typeof z==='string'?z:z&&z.key];return rgb?`rgba(${rgb},${a})`:'transparent'}
 const ZONES = {
   std:{key:'std',emoji:'⚡',name:'STANDARD',color:'var(--lime)',badge:'Bl',pcCount:13,
     devices:{h:'HyperX Cloud 2',m:'HyperX Pulsefire Core',k:'HyperX Alloy Origins Core',mon:'Asus TUF 280Hz'},
