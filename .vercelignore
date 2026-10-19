@@ -1,0 +1,4 @@
+# Vercel publishes only the web app; backend code and the Gizmo bridge stay out of the site
+backend
+bridge
+README.md
