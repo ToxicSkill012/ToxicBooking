@@ -45,7 +45,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.1'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.2'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -216,7 +216,19 @@ function trustedTgId_(p) {
 }
 
 // 🔑 Gizmo Bridge: если BRIDGE_KEY задан — без него мост не пускаем
-function bridgeOk_(p) { return !BRIDGE_KEY || String(p.key||'') === BRIDGE_KEY }
+// Старый мост (тот, что запускается из консоли) шлёт статус ПК без ключа. Принимаем его, как раньше,
+// чтобы занятость в приложении не пропадала. Чужой/неверный ключ — отказ.
+// Строгий режим: свойство скрипта BRIDGE_STRICT = 1 — тогда мост пускается только с ключом.
+const BRIDGE_STRICT = PROPS.getProperty('BRIDGE_STRICT') === '1'
+function bridgeKeyed_(p) { return !!BRIDGE_KEY && String(p.key||'') === BRIDGE_KEY }
+function bridgeOk_(p) {
+  if (!BRIDGE_KEY || bridgeKeyed_(p)) return true
+  if (!p.key && !BRIDGE_STRICT) {
+    try { CacheService.getScriptCache().put('bridge_legacy', new Date().toISOString(), 21600) } catch(e) {}
+    return true
+  }
+  return false
+}
 // Мост постучался без ключа или с чужим — запоминаем, чтобы владелец увидел это в панели
 function bridgeReject_(p, action) {
   try { CacheService.getScriptCache().put('bridge_rej', JSON.stringify({ at:new Date().toISOString(), action:action, hadKey:!!(p && p.key) }), 21600) } catch(e) {}
@@ -245,8 +257,10 @@ function doGet(e) {
     return json(gizmoSyncCompact(p.hosts, p.total, p.busy, p.free))
   }
   if (a === 'getPendingBookings' || a === 'markGizmoSynced') {
-    if (!bridgeOk_(p) && !verifyAdmin(p)) return json(bridgeReject_(p, a))
-    if (a === 'getPendingBookings') return json(getPendingBookings())
+    var adm = verifyAdmin(p)
+    if (!bridgeOk_(p) && !adm) return json(bridgeReject_(p, a))
+    // Телефоны клиентов — только мосту с ключом или админу
+    if (a === 'getPendingBookings') return json(getPendingBookings(bridgeKeyed_(p) || adm))
     return json(markGizmoSynced(p.id))
   }
   if (a === 'awardGroupPoints') return json(awardGroupPoints(trustedTgId_(p), san(p.user,60), p.isTg==='1'))
@@ -271,7 +285,8 @@ function doGet(e) {
     try { rej = JSON.parse(CacheService.getScriptCache().get('bridge_rej') || 'null') } catch(e) {}
     return json({ ok:true, v:BACKEND_V, access:dg.ok, why:dg.why, hasInit:!!p.initData, hasKey:!!p.adminKey, bot:bu,
       secrets:{ bot:!!BOT_TOKEN, userBot:!!USER_BOT_TOKEN, adminKey:!!ADMIN_KEY, bridgeKey:!!BRIDGE_KEY },
-      gizmo:{ updatedAt:gzs.updatedAt || '', hosts:gzs.hosts.length, busy:gzs.hosts.filter(function(h){ return h.busy }).length, staleMin:GIZMO_STALE_MIN, rejected:rej },
+      gizmo:{ updatedAt:gzs.updatedAt || '', hosts:gzs.hosts.length, busy:gzs.hosts.filter(function(h){ return h.busy }).length, staleMin:GIZMO_STALE_MIN, rejected:rej,
+        legacyAt: CacheService.getScriptCache().get('bridge_legacy') || '', strict: BRIDGE_STRICT },
       // Ключ моста — только подтверждённому владельцу, чтобы вписать его в адрес моста
       bridgeKey: dg.ok ? BRIDGE_KEY : '' })
   }
@@ -1240,7 +1255,7 @@ function cancelBooking(id, tgId, adminOk, all) {
 }
 
 // Получить брони для синхронизации в Gizmo (confirmed, не synced)
-function getPendingBookings() {
+function getPendingBookings(withPhones) {
   try {
     var sh = bookSheet()
     var rows = sh.getDataRange().getValues()
@@ -1250,7 +1265,7 @@ function getPendingBookings() {
       var status = String(r[10]).trim()
       if (status !== 'confirmed' && status !== 'gizmo_synced' && status !== 'offline') continue
       pending.push({
-        id: String(r[0]), user: String(r[1]), phone: String(r[2]),
+        id: String(r[0]), user: String(r[1]), phone: withPhones ? String(r[2]) : '',
         pc: String(r[3]), zone: String(r[4]), date: fmtDate(r[5]),
         start: fmtTime(r[6]), end: fmtTime(r[7]),
         pkg: String(r[8]), price: String(r[9]),

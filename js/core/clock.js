@@ -62,7 +62,8 @@ function fmtAbs(abs){
   const now=clubNow(),day=Math.floor(abs/1440),diff=day-now.day
   const hm=minToHM(abs)
   if(diff===0)return hm
-  if(diff===1)return (D.lang==='en'?'tomorrow ':'завтра ')+hm
+  // Ночью «до 00:30» понятнее, чем «до завтра 00:30»
+  if(diff===1)return abs-now.abs<12*60?hm:(D.lang==='en'?'tomorrow ':'завтра ')+hm
   return dateOfDayNum(day).slice(0,5)+' '+hm
 }
 

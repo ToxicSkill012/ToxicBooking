@@ -49,10 +49,10 @@ function adminSetupCard(d){
   const miss=sc?[['BOT_TOKEN',sc.bot,'токен бота уведомлений (@toxicskill_booking_bot) — из @BotFather'],
     ['USER_BOT_TOKEN',sc.userBot,'токен клиентского бота (@toxicskill_bot), через которого открывается приложение'],
     ['ADMIN_KEY',sc.adminKey,'свой длинный пароль — потом введи его в поле 🔑 ниже'],
-    ['BRIDGE_KEY',sc.bridgeKey,'ключ для моста Gizmo (любой длинный набор букв и цифр)']].filter(x=>!x[1]):[]
+  ].filter(x=>!x[1]):[]  // BRIDGE_KEY необязателен: старый мост работает и без него
   if(!miss.length){box.innerHTML='';box.style.display='none';return}
   box.style.display='block'
-  box.innerHTML=`<div class="setup-h">🔧 Бэкенд не настроен: нет ${miss.length===4?'ни одного секрета':miss.map(m=>m[0]).join(', ')}</div>
+  box.innerHTML=`<div class="setup-h">🔧 Бэкенд не настроен: нет ${miss.length===3?'ни одного секрета':miss.map(m=>m[0]).join(', ')}</div>
     <div class="setup-t">Поэтому админка пишет «нет доступа», а уведомления в Telegram не уходят. Добавь в Apps Script:</div>
     <ol class="setup-l">
       <li>Открой проект Apps Script → слева <b>⚙️ Настройки проекта</b></li>
@@ -75,9 +75,11 @@ function adminBridgeCard(d){
   const rej=g.rejected,rejAge=rej?Math.round((Date.now()-new Date(rej.at).getTime())/60000):null
   const url=d.bridgeKey?`${API_URL}?action=gizmoSync&key=${d.bridgeKey}&hosts=`:''
   let html
+  const legacy=g.legacyAt&&(Date.now()-new Date(g.legacyAt).getTime())<15*60000
   if(fresh){
     html=`<div class="br-h ok"><span class="br-dot"></span>Мост Gizmo онлайн</div>
       <div class="br-t">Обновлено ${age<1?'только что':age+' мин назад'} · занято ${g.busy} из ${g.hosts} ПК. Клиенты видят занятость из клуба.</div>`
+    if(legacy)html+=`<div class="br-t sm">Работает старый мост без ключа — это нормально. Чтобы посторонние не могли подменить статусы, добавь ему <code>&key=…</code> (адрес ниже) и свойство <code>BRIDGE_STRICT</code> = <code>1</code>.</div>`
   }else{
     html=`<div class="br-h bad"><span class="br-dot"></span>${upd?`Мост Gizmo молчит с ${when}${age>=60?` (${fmtDur(age)})`:''}`:'Мост Gizmo ещё ни разу не присылал данные'}</div>
       <div class="br-t">Пока мост не на связи, в приложении видны только брони — ПК, за которыми сидят без брони, выглядят свободными.</div>`
@@ -85,7 +87,7 @@ function adminBridgeCard(d){
       html+=`<div class="br-warn">⚠️ Мост стучится, но сервер его не пускает: ${rej.hadKey?'у него <b>неверный ключ</b>':'у него <b>нет ключа</b>'} (последний раз ${rejAge<1?'только что':rejAge+' мин назад'}).
         Добавь к адресу моста <code>&key=…</code> — готовый адрес ниже.</div>`
     }else{
-      html+=`<div class="br-t">Проверь, что ПК с Gizmo включён и мост запущен (папка <code>bridge</code>, <code>start-bridge.cmd</code>).</div>`
+      html+=`<div class="br-t">Запусти мост на ПК с Gizmo — той же командой в консоли, что и раньше (или <code>start-bridge.cmd</code> из папки <code>bridge</code>). Окно консоли не закрывай — данные идут, пока оно открыто.</div>`
     }
   }
   if(url)html+=`<div class="br-url"><code id="br-url">${url}ST-01:1:45,ST-02:0</code><button type="button" class="tp-chip" onclick="copyBridgeUrl()">📋 Копировать</button></div>

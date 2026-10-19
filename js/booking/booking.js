@@ -367,7 +367,9 @@ async function sPCs(w,z){
     let sub=''
     if(blk){
       const nowAbs=clubNow().abs,live=blk[0]<=nowAbs
-      sub=live?T(`занят до ${fmtAbs(blk[1])}`,`busy till ${fmtAbs(blk[1])}`):T(`бронь ${minToHM(blk[0])}–${minToHM(blk[1])}`,`booked ${minToHM(blk[0])}–${minToHM(blk[1])}`)
+      // Мост не сообщил остаток и брони сейчас нет — конец сессии неизвестен, не выдумываем время
+      const guess=live&&isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
+      sub=guess?T('занят сейчас','busy now'):live?T(`занят до ${fmtAbs(blk[1])}`,`busy till ${fmtAbs(blk[1])}`):T(`бронь ${minToHM(blk[0])}–${minToHM(blk[1])}`,`booked ${minToHM(blk[0])}–${minToHM(blk[1])}`)
     }else{
       const next=map[lbl].find(r=>r[0]>=e)
       sub=next&&next[0]-e<=180?T(`свободен до ${minToHM(next[0])}`,`free till ${minToHM(next[0])}`):T('свободен','free')
@@ -377,7 +379,8 @@ async function sPCs(w,z){
     const nowAbs=clubNow().abs
     if(!blk&&s>nowAbs+5){
       const cur=map[lbl].find(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      if(cur)now=`<div class="pc-now">${T('сейчас занят до','busy now till')} ${minToHM(cur[1])}</div>`
+      const unknown=isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
+      if(cur)now=`<div class="pc-now">${unknown?T('сейчас занят','busy now'):T('сейчас занят до','busy now till')+' '+minToHM(cur[1])}</div>`
     }
     return `<button type="button" class="PCB ${blk?'st-busy':'st-free'}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}" aria-pressed="${sel}">
       <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${sub}</div>${now}
