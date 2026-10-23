@@ -2,7 +2,7 @@
 // Сначала время, потом ПК: показываем только те компьютеры, что свободны на выбранный отрезок,
 // поэтому конфликтов «уже занято» почти не бывает. Команда — та же бронь на несколько ПК рядом.
 
-const T=(ru,en)=>D.lang==='en'?en:ru
+const T=(ru,en)=>D.lang!=='ru'?en:ru
 const STEPS=()=>[T('Формат','Format'),T('Когда','When'),T('Компьютер','PC'),T('Итог','Summary')]
 
 function openZone(key,opts={}){
@@ -50,7 +50,7 @@ function pricePerPc(){
 }
 function tariffLabel(){
   const bk=D.bk
-  if(bk.pkg)return D.lang==='en'?bk.pkg.nen:bk.pkg.n
+  if(bk.pkg)return D.lang!=='ru'?bk.pkg.nen:bk.pkg.n
   const fp=freePrice(bk.zone,bk.dur)
   return T('Своё время ','Custom ')+fmtDur(bk.dur)+(fp.viaPkg?T(` · цена пакета «${fp.viaPkg.n}»`,` · ${fp.viaPkg.nen} price`):'')
 }
@@ -133,9 +133,9 @@ function sFormat(w,z){
       :['🌙 '+T('Ночной пакет идёт сейчас','Night package is on now'),'var(--blue)']
     el.innerHTML=`<div class="hint-pill" style="color:${hint[1]}">${hint[0]}</div><div class="PG">${z.pkgs.map(p=>{
       const now=pkgIsNow(p)
-      const tl=p.locked?(now?`<span class="pk-now">● ${T('сейчас','now')}</span> ${p.t}`:'⏰ '+p.t):(D.lang==='en'?p.te:p.t)
+      const tl=p.locked?(now?`<span class="pk-now">● ${T('сейчас','now')}</span> ${p.t}`:'⏰ '+p.t):(D.lang!=='ru'?p.te:p.t)
       return `<button type="button" class="PK${bk.pkg?.id===p.id?' sel':''}" data-p="${p.id}">
-        <div class="pk-n">${D.lang==='en'?p.nen:p.n}</div>
+        <div class="pk-n">${D.lang!=='ru'?p.nen:p.n}</div>
         <div class="pk-t"${p.locked&&!now?' style="color:var(--gold)"':''}>${tl}</div>
         <div class="pk-p" style="color:${z.color}">${p.p}<span class="pk-b"> BYN</span></div>
         ${bk.team>1?`<div class="pk-x">×${bk.team} = ${p.p*bk.team} BYN</div>`:''}
@@ -172,7 +172,7 @@ function sFormat(w,z){
       const better=z.pkgs.filter(p=>!p.locked&&p.h*60>bk.dur&&p.p<=fp.price).sort((a,b)=>b.h-a.h)[0]
       const hint=el.querySelector('#dur-hint')
       if(better){
-        hint.innerHTML=`<div class="best"><span>💡 ${fp.viaPkg?T('Считаем по цене пакета','Charged at the package price')+` «${D.lang==='en'?fp.viaPkg.nen:fp.viaPkg.n}». `:''}${T(`За ${better.p} BYN можно играть ${better.h} ч`,`For ${better.p} BYN you can play ${better.h} h`)}</span><button type="button" data-best="${better.id}">${T('Взять','Take')} ${D.lang==='en'?better.nen:better.n}</button></div>`
+        hint.innerHTML=`<div class="best"><span>💡 ${fp.viaPkg?T('Считаем по цене пакета','Charged at the package price')+` «${D.lang!=='ru'?fp.viaPkg.nen:fp.viaPkg.n}». `:''}${T(`За ${better.p} BYN можно играть ${better.h} ч`,`For ${better.p} BYN you can play ${better.h} h`)}</span><button type="button" data-best="${better.id}">${T('Взять','Take')} ${D.lang!=='ru'?better.nen:better.n}</button></div>`
         hint.querySelector('[data-best]').onclick=()=>{bk.pkg=better;bk.mode='pkg';bk.sm=null;bk.step=1;haptic('light');renderStep()}
       }else hint.innerHTML=''
     }
@@ -208,7 +208,7 @@ async function sWhen(w,z){
   draw()
 
   function draw(){
-    const box=w.querySelector('#when'),en=D.lang==='en'
+    const box=w.querySelector('#when'),en=D.lang!=='ru'
     const dur=durOf(),need=bk.team,pcs=zonePcs(bk.zone),N=pcs.length
     const day=dayNumOf(bk.date),dayStart=day*1440,now=clubNow(),isToday=day===now.day
     const freeAt=s=>freePcsFor(map,s,s+dur).length
@@ -248,7 +248,7 @@ async function sWhen(w,z){
     const chips=isToday
       ?[['now',T('Сейчас','Now')],['near','⚡ '+T('Ближайшее','Nearest')],['+30','+30 '+T('мин','min')],['+60','+1 '+T('ч','h')],['@1080','18:00']]
       :[['near','⚡ '+T('Ближайшее','Nearest')],['@600','10:00'],['@840','14:00'],['@1080','18:00'],['@1260','21:00']]
-    box.innerHTML=`<div class="TB2 tp" style="--zc:${z.color}">
+    box.innerHTML=`<div class="TB2 tp" style="--zc:${z.color};--zr:${ZONE_RGB[z.key]}">
       <div class="tp-head">
         <label class="tp-big">
           <span class="tp-k">${T('НАЧАЛО','START')}</span>
@@ -338,7 +338,7 @@ async function sWhen(w,z){
 
 // ═══ ШАГ 3. ПК: свободные на выбранное время, для команды — несколько рядом ═══
 async function sPCs(w,z){
-  const bk=D.bk,en=D.lang==='en'
+  const bk=D.bk,en=D.lang!=='ru'
   w.innerHTML=`<div class="TB2 tp-load"><span class="spin"></span></div>`
   const bookings=await bkData()
   if(stale(w,2))return
@@ -348,6 +348,8 @@ async function sPCs(w,z){
   const favs=D.user._favPcs||[]
   const day=dayNumOf(bk.date)
   const dayTxt=day===clubNow().day?T('сегодня','today'):day===clubNow().day+1?T('завтра','tomorrow'):bk.date.slice(0,5)
+  // Остаток сессии неизвестен: «в игре 40 мин», если видели начало, иначе просто «занят сейчас»
+  const playing=lbl=>{const m=gizmoSinceMin(lbl);return m!=null?playingLabel(m):T('занят сейчас','busy now')}
 
   w.innerHTML=`<div class="pc-head">
       <div><div class="pch-k">${dayTxt} · ${tariffLabel()}</div><div class="pch-v">${minToHM(s)} – ${minToHM(e)}</div>
@@ -369,7 +371,7 @@ async function sPCs(w,z){
       const nowAbs=clubNow().abs,live=blk[0]<=nowAbs
       // Мост не сообщил остаток и брони сейчас нет — конец сессии неизвестен, не выдумываем время
       const guess=live&&isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      sub=guess?T('занят сейчас','busy now'):live?T(`занят до ${fmtAbs(blk[1])}`,`busy till ${fmtAbs(blk[1])}`):T(`бронь ${minToHM(blk[0])}–${minToHM(blk[1])}`,`booked ${minToHM(blk[0])}–${minToHM(blk[1])}`)
+      sub=guess?playing(lbl):live?T(`занят до ${fmtAbs(blk[1])}`,`busy till ${fmtAbs(blk[1])}`):T(`бронь ${minToHM(blk[0])}–${minToHM(blk[1])}`,`booked ${minToHM(blk[0])}–${minToHM(blk[1])}`)
     }else{
       const next=map[lbl].find(r=>r[0]>=e)
       sub=next&&next[0]-e<=180?T(`свободен до ${minToHM(next[0])}`,`free till ${minToHM(next[0])}`):T('свободен','free')
@@ -380,7 +382,7 @@ async function sPCs(w,z){
     if(!blk&&s>nowAbs+5){
       const cur=map[lbl].find(r=>r[0]<=nowAbs&&nowAbs<r[1])
       const unknown=isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      if(cur)now=`<div class="pc-now">${unknown?T('сейчас занят','busy now'):T('сейчас занят до','busy now till')+' '+minToHM(cur[1])}</div>`
+      if(cur)now=`<div class="pc-now">${unknown?playing(lbl):T('сейчас занят до','busy now till')+' '+minToHM(cur[1])}</div>`
     }
     return `<button type="button" class="PCB ${blk?'st-busy':'st-free'}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}" aria-pressed="${sel}">
       <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${sub}</div>${now}

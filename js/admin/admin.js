@@ -15,6 +15,7 @@ async function adminRunDiag(){
     const d=await r.json()
     adminSetupCard(d)
     adminBridgeCard(d)
+    adminNotifCard(d)
     if(d&&d.v){
       if(d.access){
         el.innerHTML=`<span>🟢</span><span style="color:var(--lime)">Бэкенд v${d.v} · бот ${d.bot||'?'} · доступ ОК (${d.why==='key'?'по 🔑 ключу':'Telegram-подпись'})</span>`
@@ -69,16 +70,23 @@ function adminBridgeCard(d){
   const box=document.getElementById('adm-bridge');if(!box)return
   const g=d&&d.gizmo;if(!g){box.innerHTML='';return}
   const upd=g.updatedAt?new Date(g.updatedAt):null
-  const age=upd?Math.round((Date.now()-upd.getTime())/60000):null
+  const age=upd?Math.round((srvNow()-upd.getTime())/60000):null
   const fresh=age!==null&&age<=(g.staleMin||5)
   const when=upd?minToHM(Math.floor((upd.getTime()+CLUB_TZ_OFFSET*60000)/60000)%1440):''
-  const rej=g.rejected,rejAge=rej?Math.round((Date.now()-new Date(rej.at).getTime())/60000):null
+  const rej=g.rejected,rejAge=rej?Math.round((srvNow()-new Date(rej.at).getTime())/60000):null
   const url=d.bridgeKey?`${API_URL}?action=gizmoSync&key=${d.bridgeKey}&hosts=`:''
   let html
-  const legacy=g.legacyAt&&(Date.now()-new Date(g.legacyAt).getTime())<15*60000
+  const legacy=g.legacyAt&&(srvNow()-new Date(g.legacyAt).getTime())<15*60000
   if(fresh){
     html=`<div class="br-h ok"><span class="br-dot"></span>Мост Gizmo онлайн</div>
       <div class="br-t">Обновлено ${age<1?'только что':age+' мин назад'} · занято ${g.busy} из ${g.hosts} ПК. Клиенты видят занятость из клуба.</div>`
+    // Остаток времени: старый мост шлёт только «занят/свободен» — тогда «до 19:45» показать нечем
+    if(g.withLeft!==undefined&&g.busy>0){
+      html+=g.withLeft
+        ?`<div class="br-t sm">⏱ Остаток времени известен у ${g.withLeft} из ${g.busy} занятых ПК — клиенты видят «занят до 19:45».</div>`
+        :`<div class="br-warn">⏱ Мост не присылает, <b>сколько осталось</b> у сессии — только «занят/свободен». Клиенты видят «занят · в игре 40 мин», а время окончания — только по броням.
+          Чтобы было «занят до 19:45», мост должен слать минуты: <code>ST-01:1:45</code>. Мост из папки <code>bridge</code> берёт остаток прямо из Gizmo.</div>`
+    }
     if(legacy)html+=`<div class="br-t sm">Работает старый мост без ключа — это нормально. Чтобы посторонние не могли подменить статусы, добавь ему <code>&key=…</code> (адрес ниже) и свойство <code>BRIDGE_STRICT</code> = <code>1</code>.</div>`
   }else{
     html=`<div class="br-h bad"><span class="br-dot"></span>${upd?`Мост Gizmo молчит с ${when}${age>=60?` (${fmtDur(age)})`:''}`:'Мост Gizmo ещё ни разу не присылал данные'}</div>
@@ -95,6 +103,53 @@ function adminBridgeCard(d){
   box.innerHTML=html
   box.className='bridge '+(fresh?'ok':'bad')
   box.style.display='block'
+}
+// 🔔 Уведомления о бронях: дошло ли последнее и почему нет. Кнопка «Проверить» шлёт тест от каждого бота.
+function _tgFix(code,desc,bot){
+  desc=String(desc||'');code=+code||0
+  if(desc==='no_token')return 'токен не задан в «Свойствах скрипта»'
+  if(code===401||/unauthorized|not found$/i.test(desc))return 'токен неверный — скопируй его заново у @BotFather (целиком, без пробелов)'
+  if(code===403||/blocked|initiate|forbidden/i.test(desc))return `${bot||'бот'} не может тебе писать — открой его в Telegram и нажми «Запустить» (/start)`
+  if(/chat not found/i.test(desc))return `${bot||'бот'} не знает твой чат — открой его и нажми «Запустить»; проверь ADMIN_CHAT_ID`
+  return desc||('ошибка '+code)
+}
+function adminNotifCard(d){
+  const box=document.getElementById('adm-tg');if(!box)return
+  if(!d||!d.access){box.style.display='none';return}
+  const t=d.tg
+  const hm=iso=>{const x=Date.parse(iso);return isNaN(x)?'':minToHM(Math.floor((x+CLUB_TZ_OFFSET*60000)/60000)%1440)}
+  const firstErr=s=>{const m=/(-?\d+) (.*?)(?: \||$)/.exec(String(s||''));return m?_tgFix(m[1],m[2]):String(s||'')}
+  let cls='ok',head,sub=''
+  if(!t){cls='warn';head='Уведомления о бронях';sub='Бэкенд старый — обнови Code.gs до v7.3, чтобы видеть, доходят ли уведомления.'}
+  else{
+    const last=t.last,err=t.lastErr
+    if(last&&last.ok&&!last.fallback){head='Уведомления о бронях приходят';sub=`Последнее ушло в ${hm(last.at)}${t.chats>1?` · чатов: ${t.chats}`:''}.`}
+    else if(last&&last.ok&&last.fallback){cls='warn';head='Уведомления приходят от @ToxicSkill_bot';sub=`Бот броней не может писать: ${firstErr(last.err)}. Пока сообщения доставляет клиентский бот.`}
+    else if(last||err){const e=last||err;cls='bad';head='Уведомления о бронях НЕ доходят';sub=`${hm(e.at)?'Последняя попытка в '+hm(e.at)+': ':''}${firstErr(e.err)||'неизвестная ошибка'}.`}
+    else{cls='warn';head='Уведомления о бронях';sub='С момента обновления бэкенда ещё не отправлялись. Нажми «Проверить» — придёт тестовое сообщение.'}
+  }
+  box.className='bridge '+cls
+  box.style.display='block'
+  box.innerHTML=`<div class="br-h ${cls}"><span class="br-dot"></span>🔔 ${head}</div><div class="br-t">${sub}</div>
+    <div id="adm-tg-res">${_tgTestHtml}</div>
+    <button type="button" class="tp-chip br-btn" id="adm-tg-btn" onclick="adminTestNotif()">🧪 ${_tgTestHtml?'Проверить ещё раз':'Проверить уведомления'}</button>`
+}
+let _tgTestHtml=''
+async function adminTestNotif(){
+  const btn=document.getElementById('adm-tg-btn'),out=document.getElementById('adm-tg-res')
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin" style="width:12px;height:12px"></span> Отправляю…'}
+  const d=await apiGetJSON({action:'adminTestTg',initData:_admInit(),adminKey:D._admKey||''},20000)
+  if(btn){btn.disabled=false;btn.textContent='🧪 Проверить ещё раз'}
+  if(!out)return
+  if(!d||!d.ok||!d.bots){
+    out.innerHTML=_tgTestHtml=`<div class="br-warn">${d&&d.legacy||d&&d.error==='bad_json'?'Бэкенд старый: обнови Code.gs до v7.3 и разверни новую версию.':'Не удалось проверить: '+(d&&d.error||'нет связи')}</div>`
+    return
+  }
+  const row=(name,b)=>`<div class="tg-row ${b.ok?'ok':'bad'}"><b>${b.ok?'✅':'❌'} ${name}${b.bot?' '+b.bot:''}</b><span>${b.ok?'работает — тестовое сообщение отправлено':_tgFix(b.code,b.desc,b.bot)}</span></div>`
+  out.innerHTML=_tgTestHtml=row('Бот броней',d.bots.booking)+row('Клиентский бот',d.bots.user)+
+    `<div class="br-t sm">${d.bots.booking.ok?'Брони приходят от бота броней.':d.bots.user.ok?'Брони будут приходить от клиентского бота, пока не починишь бот броней.':'Ни один бот не может тебе писать — уведомления не придут, пока не исправишь.'}</div>`
+  haptic(d.bots.booking.ok||d.bots.user.ok?'ok':'err')
+  setTimeout(adminRunDiag,1500)
 }
 function copyBridgeUrl(){
   const t=document.getElementById('br-url')?.textContent||''
@@ -137,8 +192,8 @@ function maintEta(){
   if(end<since-5)end+=1440
   const left=end-now
   box.hidden=false;if(ind)ind.hidden=true
-  document.getElementById('maint-eta-v').textContent=(D.lang==='en'?'by ':'к ')+eta
-  document.getElementById('maint-eta-s').textContent=left>0?(D.lang==='en'?'in ':'через ')+fmtDur(left):(D.lang==='en'?'any minute now…':'вот-вот закончим…')
+  document.getElementById('maint-eta-v').textContent=(D.lang!=='ru'?'by ':'к ')+eta
+  document.getElementById('maint-eta-s').textContent=left>0?(D.lang!=='ru'?'in ':'через ')+fmtDur(left):(D.lang!=='ru'?'any minute now…':'вот-вот закончим…')
   const pct=end>since?Math.min(100,Math.max(4,(now-since)/(end-since)*100)):100
   document.getElementById('maint-bar').style.width=pct+'%'
 }
@@ -160,7 +215,7 @@ function applyMaintUI(){
       if(shown){
         ov.classList.add('mt-out')
         setTimeout(()=>{ov.style.display='none';ov.classList.remove('mt-out')},480)
-        toast(D.lang==='en'?'We are back! 🎉':'Мы снова работаем! 🎉','🎮');haptic('ok')
+        toast(D.lang!=='ru'?'We are back! 🎉':'Мы снова работаем! 🎉','🎮');haptic('ok')
       }else ov.style.display='none'
     }
   }

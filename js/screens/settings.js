@@ -3,21 +3,10 @@
 // ═══════════════════════════════════════════════
 // DELETE ACCOUNT
 // ═══════════════════════════════════════════════
-async function testBot(){
-  const btn=event.currentTarget
-  const orig=btn.innerHTML
-  btn.innerHTML='<span class="spin"></span>'
-  btn.disabled=true
-  try{
-    const res=await tgRaw('sendMessage',{
-      chat_id:TG.adminId,
-      text:'✅ <b>ToxicSkill бот работает!</b>\n\nПриложение успешно подключено.\nВсе уведомления будут приходить сюда.\n\n🤖 Bot test OK',
-      parse_mode:'HTML'
-    })
-    if(res.ok){toast('✅ Сообщение отправлено в Telegram!','✈️')}
-    else{toast('❌ Ошибка: '+res.description,'⚠️')}
-  }catch(e){toast('❌ Нет соединения','⚠️')}
-  btn.innerHTML=orig;btn.disabled=false
+// Проверка бота — теперь в панели владельца: тест от каждого бота с точной причиной ошибки
+function testBot(){
+  const box=document.getElementById('adm-tg')
+  if(box){box.scrollIntoView({behavior:'smooth',block:'center'});adminTestNotif()}
 }
 
 let _bugCat='',_bugShot=null
@@ -142,9 +131,8 @@ function doDelAccount(){
   closeM('confirm-m')
   Object.assign(D.user,{name:'Toxic Player',handle:'',phone:'',age:'',bday:'',reg:false,bks:[],hrs:0,_hintsSeen:false})
   sv()
-  document.querySelectorAll('.sc').forEach(s=>s.classList.remove('on'))
-  document.getElementById('ob').classList.add('on')
-  D.cur='ob'
+  // go() сам прячет меню и кнопку «Назад»; слайды онбординга запускаем заново
+  go('ob');obSlide(0)
   const btn=document.getElementById('ob-btn')
   if(btn){btn.disabled=false;btn.innerHTML='<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>'+_('loginBtn')+'</span>'}
   // Если уже есть данные из Telegram — сразу входим
@@ -154,7 +142,7 @@ function doDelAccount(){
       setTimeout(()=>doLogin(),300)
     }
   }catch(e){}
-  toast(D.lang==='en'?'Account deleted':'Аккаунт удалён','👋')
+  toast(D.lang!=='ru'?'Account deleted':'Аккаунт удалён','👋')
 }
 
 // ── 🔔 НАСТРОЙКИ УВЕДОМЛЕНИЙ (сохраняются локально + на сервере) ──
@@ -179,6 +167,17 @@ function toggleNotif(kind,el){
   // Синхронизация на сервер (с задержкой — не спамим при быстрых переключениях)
   clearTimeout(_notifSyncT)
   _notifSyncT=setTimeout(syncNotifPrefs,700)
+}
+// Настройки с сервера: на новом устройстве переключатели раньше все были «вкл» и затирали выбор
+let _notifLoaded=false
+async function loadNotifPrefs(){
+  if(_notifLoaded||!D.user._tgId||!tgInit())return
+  _notifLoaded=true
+  const d=await apiGetJSON({action:'getNotifPrefs'})
+  if(d&&d.ok&&d.prefs&&typeof d.prefs==='object'){
+    D.user.notif={bookings:d.prefs.bookings!==false,promos:d.prefs.promos!==false,events:d.prefs.events!==false};sv()
+    applyNotifUI()
+  }else _notifLoaded=false
 }
 async function syncNotifPrefs(){
   const tgId=D.user._tgId;if(!tgId)return

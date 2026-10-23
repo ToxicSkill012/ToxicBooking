@@ -14,7 +14,8 @@ function getAchievements(){
   const u=D.user, bks=(u.bks||[]).filter(b=>b.status!=='cancelled')
   const totalBks=bks.length
   const totalHrs=bks.reduce((s,b)=>{const bs=timeToMinJS(b.start),be=timeToMinJS(b.end);let d=be-bs;if(d<=0)d+=1440;return s+d/60},0)
-  const nightBks=bks.filter(b=>timeToMinJS(b.start)>=22||timeToMinJS(b.start)<6).length
+  // timeToMinJS — минуты от полуночи: ночь — старт с 22:00 до 06:00
+  const nightBks=bks.filter(b=>{const m=timeToMinJS(b.start);return m>=22*60||m<6*60}).length
   const vipBks=bks.filter(b=>b.zone==='vip').length
   const bcBks=bks.filter(b=>b.zone==='bootcamp'||b.zone==='bc').length
   const uniqueDays=new Set(bks.map(b=>b.date)).size
@@ -41,6 +42,7 @@ function getAchievements(){
 // ═══ ОТЗЫВЫ ═══
 function showReviewModal(){
   if(!D.user._tgId){toast('Нужен Telegram','⚠️');return}
+  _rvRating=0 // новая оценка с нуля — раньше уходила звезда, поставленная в прошлый раз
   const modal=document.createElement('div')
   modal.className='MBG open';modal.style.zIndex='400'
   modal.innerHTML=`<div class="MOD" style="transform:none;max-height:86%">
@@ -93,8 +95,9 @@ async function sendReview(){
   const text=document.getElementById('rv-text')?.value.trim()||''
   const btn=document.getElementById('rv-send')
   btn.innerHTML='<span class="spin"></span>';btn.disabled=true
+  const restore=()=>{btn.innerHTML='📤 Отправить отзыв';btn.disabled=false}
   try{
-    await fetch(API_URL+'?'+new URLSearchParams({
+    const r=await fetch(API_URL+'?'+new URLSearchParams({
       action:'submitReview',
       tgId:D.user._tgId||'',
       user:D.user.name||'Гость',
@@ -102,12 +105,14 @@ async function sendReview(){
       text:text,
       _t:Date.now()
     }))
-    // Сохраняем что оставили отзыв
+    let d={ok:true};try{d=await r.json()}catch(je){}
+    // Сервер отказал (отзыв уже был, нет подписи Telegram) — говорим как есть, а не «спасибо»
+    if(!d.ok){restore();toast(d.error||'Не удалось отправить отзыв','⚠️');return}
     D.user._lastReview=Date.now();sv()
-    document.querySelector('.MBG[style*="z-index"]')?.remove()
+    btn.closest('.MBG')?.remove()
     toast('Спасибо за отзыв! ⭐','⭐')
   }catch(e){
-    btn.innerHTML='📤 Отправить отзыв';btn.disabled=false
+    restore()
     toast('Ошибка отправки','⚠️')
   }
 }

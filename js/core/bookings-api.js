@@ -25,6 +25,7 @@ async function loadBookings(date, zone, forceReload=false){
       body:JSON.stringify({action:'getBookings'})
     })
     const d=await r.json()
+    syncClock(d.now,now)
     if(d.ok) bookings=d.bookings||[]
   }catch(e){
     // Fallback GET

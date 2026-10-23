@@ -141,4 +141,6 @@ function gameOverSnake(){
 function stopSnake(){
   _sk.running=false;clearInterval(_sk.loop)
   document.removeEventListener('keydown',snakeKey)
+  // Закрыли посреди игры — при следующем открытии нужна кнопка «Играть», иначе поле зависало
+  const over=document.getElementById('sk-over');if(over)over.style.display='flex'
 }

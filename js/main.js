@@ -59,7 +59,17 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(tu){
         let changed=false
         // Всегда сохраняем свежие TG данные
-        if(tu.id&&String(tu.id)!==D.user._tgId){D.user._tgId=String(tu.id);changed=true}
+        if(tu.id&&String(tu.id)!==D.user._tgId){
+          const nid=String(tu.id)
+          // Другой аккаунт Telegram на этом телефоне: прячем данные прежнего (имя, телефон, брони, баллы)
+          // и достаём свои — иначе новый человек видел чужой профиль и бронировал под чужим именем
+          if(D.user._tgId){
+            try{localStorage.setItem('ts4_u_'+D.user._tgId,JSON.stringify(D.user))}catch(e){}
+            let saved=null;try{saved=JSON.parse(localStorage.getItem('ts4_u_'+nid)||'null')}catch(e){}
+            D.user=saved||newUser()
+          }
+          D.user._tgId=nid;changed=true
+        }
         if(tu.username&&tu.username!==D.user._tgHandle){D.user._tgHandle=tu.username;changed=true}
         if(tu.photo_url&&tu.photo_url!==D.user._tgPhoto){D.user._tgPhoto=tu.photo_url;changed=true}
         // Если не зарегистрирован — подставляем данные из TG

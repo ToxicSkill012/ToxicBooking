@@ -182,17 +182,24 @@ button.PK{width:100%;cursor:pointer}
 .Ztag{white-space:nowrap}
 
 /* Ползунок длительности */
-.ds{position:relative;padding:22px 15px 26px;touch-action:pan-y;outline:none;cursor:pointer;-webkit-user-select:none;user-select:none}
+.ds{position:relative;padding:30px 16px 28px;touch-action:pan-y;outline:none;cursor:pointer;-webkit-user-select:none;user-select:none}
 .ds:focus-visible .ds-th{box-shadow:0 0 0 3px var(--dc),0 6px 16px rgba(0,0,0,.5)}
-.ds-tr{position:relative;height:10px;border-radius:6px;background:rgba(255,255,255,.08);box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
-.ds-fill{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:linear-gradient(90deg,rgba(255,255,255,.18),var(--dc));box-shadow:0 0 18px -3px var(--dc)}
-.ds-m{position:absolute;top:50%;width:2px;height:4px;margin:-2px 0 0 -1px;border-radius:1px;background:rgba(255,255,255,.28)}
-.ds-m.big{height:8px;margin-top:-4px;background:rgba(255,255,255,.45)}
-.ds-m b{position:absolute;top:15px;left:50%;transform:translateX(-50%);font-family:var(--m);font-size:9.5px;font-weight:600;color:var(--t3);white-space:nowrap}
-.ds-th{position:absolute;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(180deg,#fff,#d7dbe6);box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 -2px 0 rgba(0,0,0,.08);transition:transform .16s var(--e)}
-.ds-th span{width:10px;height:10px;border-radius:50%;background:var(--dc);box-shadow:0 0 8px var(--dc)}
-.ds.drag .ds-th{transform:scale(1.14)}
+.ds-tr{position:relative;height:12px;border-radius:7px;background:rgba(255,255,255,.08);box-shadow:inset 0 1px 3px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.05)}
+.ds-fill{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.32),rgba(255,255,255,0) 65%),linear-gradient(90deg,rgba(255,255,255,.2),var(--dc) 70%);
+  box-shadow:0 0 20px -2px var(--dc)}
+.ds-m{position:absolute;top:50%;width:2px;height:4px;margin:-2px 0 0 -1px;border-radius:1px;background:rgba(255,255,255,.3);pointer-events:none}
+.ds-m.big{height:12px;margin-top:-6px;background:rgba(255,255,255,.4)}
+.ds-m b{position:absolute;top:17px;left:50%;transform:translateX(-50%);font-family:var(--m);font-size:10px;font-weight:700;color:var(--t3);white-space:nowrap}
+.ds-th{position:absolute;top:50%;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 30%,#fff,#d9dde8);box-shadow:0 0 0 4px rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.55),inset 0 -2px 0 rgba(0,0,0,.1);transition:transform .16s var(--e)}
+.ds-th span{width:12px;height:12px;border-radius:50%;background:var(--dc);box-shadow:0 0 10px var(--dc)}
+.ds-tip{position:absolute;bottom:40px;left:50%;transform:translate(-50%,6px) scale(.9);padding:5px 9px;border-radius:10px;font-style:normal;
+  font-family:var(--m);font-size:12px;font-weight:700;color:#000;background:var(--dc);white-space:nowrap;opacity:0;pointer-events:none;
+  box-shadow:0 6px 16px -4px rgba(0,0,0,.6);transition:opacity .15s,transform .18s var(--e)}
+.ds-tip::after{content:'';position:absolute;left:50%;bottom:-4px;width:8px;height:8px;margin-left:-4px;background:inherit;transform:rotate(45deg);border-radius:1px}
+.ds.drag .ds-th{transform:scale(1.12)}
+.ds.drag .ds-tip{opacity:1;transform:translate(-50%,0) scale(1)}
 
 /* Дни */
 button.DC{cursor:pointer}
@@ -232,35 +239,50 @@ button.DC{cursor:pointer}
 .avail button{margin-left:auto;flex-shrink:0;padding:7px 11px;border-radius:10px;font-size:11.5px;font-weight:800;color:#000;background:var(--lime);box-shadow:0 4px 14px -4px rgba(196,255,62,.6)}
 .av-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime)}
 
-/* Лента времени */
-.tt{position:relative;height:88px;margin:4px 0 2px;outline:none}
+/* Лента времени: подписи часов → линейка → полоса занятости; игла по центру */
+.tt{position:relative;height:100px;margin:6px 0 4px;outline:none}
 .tt:focus-visible{box-shadow:inset 0 0 0 2px var(--lime30);border-radius:14px}
+/* Мягкий свет под иглой — видно, где «сейчас выбрано» */
+.tt-glow{position:absolute;left:50%;top:14px;width:120px;height:78px;margin-left:-60px;pointer-events:none;
+  background:radial-gradient(50% 50% at 50% 60%,rgba(var(--zr,196,255,62),.2),transparent 70%)}
 .tt-vp{position:absolute;inset:0;overflow:hidden;touch-action:pan-y;cursor:grab;-webkit-user-select:none;user-select:none;
-  -webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent)}
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent);mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent)}
 .tt-vp:active{cursor:grabbing}
 .tt-tr{position:absolute;left:0;top:0;height:100%;will-change:transform}
-.tt-tr>div{position:absolute;top:0;height:100%}
-.tt-pre{top:16px!important;height:36px!important;border-radius:8px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 5px,transparent 5px 10px)}
-.tt-segs{left:0;right:0}
-.tt-seg{position:absolute;top:16px;height:36px;border-radius:8px}
-.tt-seg.full{background:repeating-linear-gradient(135deg,rgba(255,63,96,.5) 0 6px,rgba(255,63,96,.18) 6px 12px);box-shadow:inset 0 0 0 1px rgba(255,63,96,.45)}
-.tt-seg.few{background:linear-gradient(180deg,rgba(255,202,80,.26),rgba(255,202,80,.1));box-shadow:inset 0 0 0 1px rgba(255,202,80,.3)}
-.tt-sel{left:0;top:21px!important;height:26px!important;border-radius:9px;opacity:.85;background:linear-gradient(90deg,var(--zc,var(--lime)),rgba(255,255,255,.12));
-  box-shadow:0 0 22px -4px var(--zc,var(--lime)),inset 0 1px 0 rgba(255,255,255,.45);will-change:transform,width}
-.tt-sel.bad{background:linear-gradient(90deg,var(--red),rgba(255,63,96,.2));box-shadow:0 0 20px -4px var(--red)}
-.tt-ticks{left:0;right:0;top:16px!important;height:36px!important;pointer-events:none;
+.tt-tr>div{position:absolute}
+/* Подписи часов */
+.tt-lbls{left:0;right:0;top:0;height:20px}
+.tt-l{position:absolute;top:2px;transform:translateX(-50%);font-family:var(--m);font-size:12px;font-weight:700;color:var(--txt);white-space:nowrap;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
+.tt-l.half{top:4px;font-size:9.5px;font-weight:500;color:var(--t3)}
+.tt-l.day{color:var(--gold);font-size:10.5px}
+/* Линейка: час — длинное деление, 15 мин — среднее, 5 мин — короткое (растут от полосы вверх) */
+.tt-ticks{left:0;right:0;top:24px;height:26px;pointer-events:none;
   background:
-    linear-gradient(90deg,rgba(255,255,255,.62) 0 2px,transparent 2px) var(--o60) 100%/var(--p60) 100% repeat-x,
-    linear-gradient(90deg,rgba(255,255,255,.32) 0 1px,transparent 1px) var(--o15) 100%/var(--p15) 62% repeat-x,
-    linear-gradient(90deg,rgba(255,255,255,.14) 0 1px,transparent 1px) var(--o5) 100%/var(--p5) 34% repeat-x}
-.tt-lbls{left:0;right:0}
-.tt-l{position:absolute;top:58px;transform:translateX(-50%);font-family:var(--m);font-size:10.5px;font-weight:600;color:var(--t2);white-space:nowrap}
-.tt-l.half{font-size:9px;font-weight:400;color:var(--t3)}
-.tt-l.day{color:var(--gold);font-weight:700}
-.tt-now{top:10px!important;height:46px!important;width:2px;margin-left:-1px;border-radius:2px;background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
-.tt-needle{position:absolute;left:50%;top:6px;height:52px;width:4px;margin-left:-2px;border-radius:4px;pointer-events:none;
-  background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 16px rgba(255,255,255,.55)}
-.tt-needle i{position:absolute;left:50%;top:-4px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+    linear-gradient(90deg,rgba(255,255,255,.7) 0 2px,transparent 2px) var(--o60) 100%/var(--p60) 100% repeat-x,
+    linear-gradient(90deg,rgba(255,255,255,.34) 0 1.5px,transparent 1.5px) var(--o15) 100%/var(--p15) 58% repeat-x,
+    linear-gradient(90deg,rgba(255,255,255,.16) 0 1px,transparent 1px) var(--o5) 100%/var(--p5) 30% repeat-x}
+/* Полоса занятости */
+.tt-band{left:0;top:56px;height:14px;border-radius:7px;background:rgba(255,255,255,.07);box-shadow:inset 0 1px 2px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.05)}
+.tt-pre{top:56px;height:14px;border-radius:7px 0 0 7px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.07) 0 4px,transparent 4px 8px)}
+.tt-segs{left:0;right:0;top:56px;height:14px}
+.tt-seg{position:absolute;top:0;height:14px;border-radius:7px}
+.tt-seg.full{background:repeating-linear-gradient(135deg,rgba(255,63,96,.75) 0 5px,rgba(255,63,96,.32) 5px 10px);box-shadow:inset 0 0 0 1px rgba(255,63,96,.55)}
+.tt-seg.few{background:linear-gradient(180deg,rgba(255,202,80,.62),rgba(255,202,80,.36));box-shadow:inset 0 0 0 1px rgba(255,202,80,.5)}
+/* Выбранный отрезок — поверх полосы, светится цветом зоны */
+.tt-sel{left:0;top:52px;height:22px;border-radius:11px;will-change:transform,width;
+  background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 60%),var(--zc,var(--lime));
+  box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 24px -2px var(--zc,var(--lime)),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -2px 0 rgba(0,0,0,.18)}
+.tt-sel i{position:absolute;right:5px;top:50%;width:4px;height:10px;margin-top:-5px;border-radius:2px;background:rgba(0,0,0,.35)}
+.tt-sel.bad{background:repeating-linear-gradient(135deg,var(--red) 0 7px,#ff6d86 7px 14px);box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 22px -2px var(--red),inset 0 1px 0 rgba(255,255,255,.4)}
+/* «Сейчас» */
+.tt-now{top:24px;height:50px;width:2px;margin-left:-1px;border-radius:2px;background:var(--cyan);box-shadow:0 0 10px var(--cyan);z-index:1}
+.tt-now b{position:absolute;top:6px;right:7px;font-size:8.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--cyan);white-space:nowrap;text-shadow:0 0 8px rgba(42,237,181,.5)}
+/* Игла */
+.tt-needle{position:absolute;left:50%;top:22px;height:58px;width:3px;margin-left:-1.5px;border-radius:3px;pointer-events:none;z-index:2;
+  background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 0 14px rgba(255,255,255,.6)}
+.tt-needle i{position:absolute;left:50%;bottom:-9px;width:18px;height:18px;margin-left:-9px;border-radius:50%;
+  background:radial-gradient(circle at 50% 35%,#fff,#dfe3ee);box-shadow:0 0 0 3px rgba(var(--zr,196,255,62),.55),0 4px 12px rgba(0,0,0,.55)}
+.tt-needle::before{content:'';position:absolute;left:50%;top:-4px;width:9px;height:9px;margin-left:-4.5px;border-radius:2px;background:#fff;transform:rotate(45deg);box-shadow:0 2px 6px rgba(0,0,0,.4)}
 
 /* ПК */
 .pc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-radius:20px;background:var(--glass);border:1px solid var(--b1);box-shadow:var(--glass-hi)}
@@ -336,12 +358,6 @@ button.DC{cursor:pointer}
 /* Компактное поле времени (групповая и оффлайн-бронь) */
 .tf-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px 8px 14px;border-radius:16px;background:var(--glass);border:1px solid var(--b1);box-shadow:var(--glass-hi)}
 .tf-row>span{font-size:12px;color:var(--t2)}
-.tf{display:flex;align-items:center;gap:8px}
-.tf-b{width:36px;height:36px;border-radius:12px;font-size:20px;font-weight:700;color:var(--txt);background:var(--glass-strong);border:1px solid var(--b2);box-shadow:inset 0 1px 0 rgba(255,255,255,.2);touch-action:manipulation;user-select:none}
-.tf-b:active{background:rgba(75,158,255,.25)}
-.tf-v{position:relative;min-width:66px;text-align:center;cursor:pointer}
-.tf-v span{font-family:var(--m);font-size:19px;font-weight:700;color:var(--blue);text-shadow:0 0 14px rgba(75,158,255,.4)}
-.tf-v input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:16px}
 .tf-note{font-size:10px;color:var(--t3);margin:-2px 4px 0}
 
 /* ══ ИТОГ ══ */
@@ -390,6 +406,9 @@ body.lowfx .BN,body.lowfx .MOD,body.lowfx #toast,html.pre-lowfx .BN,html.pre-low
 body.lowfx .BN,html.pre-lowfx .BN{background:rgba(16,18,30,.96)}
 body.lowfx .MOD,html.pre-lowfx .MOD,html.fx-lo .MOD{background:linear-gradient(180deg,#151827,#0d0f1b)}
 body.lowfx #toast,html.pre-lowfx #toast{background:#171a2b}
+/* В лёгком режиме стекло остаётся (полупрозрачные карточки и статичная подсветка почти ничего не стоят) —
+   убираем только размытие и тяжёлые декоративные анимации */
+body.lowfx .MOD,html.pre-lowfx .MOD{background:linear-gradient(180deg,rgba(24,27,42,.985),rgba(13,15,27,.985));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -22px 64px rgba(0,0,0,.66)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .BN{background:rgba(16,18,30,.96)}
   .MOD{background:linear-gradient(180deg,#151827,#0d0f1b)}
@@ -422,6 +441,13 @@ body.lowfx #toast,html.pre-lowfx #toast{background:#171a2b}
 .br-t{font-size:11.5px;color:var(--t2);margin-top:6px;line-height:1.5}
 .br-t.sm{font-size:10.5px;color:var(--t3)}
 .br-warn{margin-top:8px;padding:9px 11px;border-radius:12px;font-size:11.5px;line-height:1.5;color:#ffe2a3;background:rgba(255,202,80,.08);border:1px solid rgba(255,202,80,.25)}
+.bridge.warn{border-color:rgba(255,202,80,.3);background:linear-gradient(160deg,rgba(255,202,80,.09),rgba(255,202,80,.01))}
+.br-h.warn{color:var(--gold)}
+.br-btn{margin-top:10px;width:100%;justify-content:center;padding:10px 12px;font-size:12px}
+.tg-row{display:flex;flex-direction:column;gap:3px;margin-top:8px;padding:9px 11px;border-radius:12px;font-size:11.5px;line-height:1.45;background:rgba(255,255,255,.04);border:1px solid var(--b1)}
+.tg-row b{font-size:12px}.tg-row span{color:var(--t2)}
+.tg-row.ok{border-color:rgba(196,255,62,.25)}.tg-row.ok b{color:var(--lime)}
+.tg-row.bad{border-color:rgba(255,63,96,.3)}.tg-row.bad b{color:#ff8ea2}
 .br-url{display:flex;align-items:center;gap:8px;margin-top:9px;padding:8px 8px 8px 11px;border-radius:12px;background:rgba(0,0,0,.28)}
 .br-url code{flex:1;min-width:0;font-family:var(--m);font-size:10px;color:var(--lime);word-break:break-all;line-height:1.4}
 .bridge code,.br-t code{font-family:var(--m);font-size:10.5px;padding:1px 4px;border-radius:4px;background:rgba(255,255,255,.07)}
@@ -528,3 +554,49 @@ body.lowfx .mt-card,html.fx-lo .mt-card{-webkit-backdrop-filter:none;backdrop-fi
 .zleg span{display:flex;align-items:center;gap:4px}
 .zleg i{width:8px;height:8px;border-radius:3px;background:var(--lime)}
 .zleg i.soon{background:var(--gold)}.zleg i.busy{background:var(--red)}
+
+/* ══ АДМИН: ОФФЛАЙН-БРОНЬ ══ */
+.ab-mod{max-height:92%;padding:8px 16px 0}
+.ab-hd{display:flex;align-items:center;gap:12px;margin:2px 2px 14px}
+.ab-ic{width:46px;height:46px;flex-shrink:0;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:linear-gradient(135deg,rgba(75,158,255,.35),rgba(42,237,181,.2));border:1px solid rgba(75,158,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 8px 22px -8px rgba(75,158,255,.6)}
+.ab-t{font-family:var(--F);font-size:19px;font-weight:800;letter-spacing:-.5px}
+.ab-s{font-size:11.5px;color:var(--t2);margin-top:2px}
+.ab-x{margin-left:auto;width:34px;height:34px;flex-shrink:0;border-radius:12px;font-size:14px;color:var(--t2);background:var(--glass);border:1px solid var(--b1)}
+.ab-k{margin:16px 4px 8px;font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--t2)}
+.ab-k span{color:var(--zc,var(--lime));letter-spacing:.4px}
+.ab-note{padding:14px;border-radius:16px;text-align:center;font-size:12px;color:var(--t3);border:1px dashed var(--b2)}
+#ab-body .DCH{margin:0 -16px 10px}
+#ab-body .seg{margin:10px 0}
+#ab-body .tp{margin-top:2px}
+.ab-sum{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:13px 15px;border-radius:18px;font-size:12px;color:var(--t2);
+  background:linear-gradient(135deg,rgba(var(--zr,196,255,62),.12),rgba(var(--zr,196,255,62),.03));border:1px solid rgba(var(--zr,196,255,62),.25)}
+.ab-sum b{display:block;font-family:var(--m);font-size:14px;color:var(--txt)}
+.ab-sum small{display:block;margin-top:3px;font-size:10.5px;color:var(--t2)}
+.ab-total{text-align:right;font-family:var(--F);font-size:26px;font-weight:800;color:var(--zc,var(--lime));line-height:1;white-space:nowrap}
+.ab-total span{font-size:12px;color:var(--t2)}
+.ab-total small{font-family:var(--m);font-size:10px;color:var(--t3);font-weight:600;margin:0 0 4px}
+/* Низ окна всегда на виду: что выбрано, сумма и кнопка */
+.ab-foot{position:sticky;bottom:0;z-index:3;margin:14px -16px 0;padding:18px 16px calc(max(env(safe-area-inset-bottom,12px),12px) + 10px);
+  background:linear-gradient(180deg,rgba(16,18,30,0),rgba(16,18,30,.94) 22%,rgba(14,16,27,.98))}
+.ab-foot .ab-sum{margin-top:0}
+.ab-go{margin-top:10px;box-shadow:0 8px 24px -8px rgba(0,0,0,.7)}
+.ab-go:disabled{opacity:1;filter:grayscale(.85) brightness(.55)}
+
+/* ══ СОЦСЕТИ: стекло с фирменным цветом вместо сплошных плашек ══ */
+.soc-b{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;font-size:13px;font-weight:700;text-decoration:none;color:#fff;
+  background:linear-gradient(150deg,rgba(var(--sc),.26),rgba(var(--sc),.07) 60%,rgba(255,255,255,.02));
+  border:1px solid rgba(var(--sc),.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 24px -14px rgba(var(--sc),.8);transition:transform .12s var(--e)}
+.soc-b:active{transform:scale(.96)}
+.soc-b svg{flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--sc),.6))}
+.soc-b.soc-ig{background:linear-gradient(150deg,rgba(240,148,51,.22),rgba(220,39,67,.14) 50%,rgba(188,24,136,.08));border-color:rgba(225,48,108,.4)}
+.soc-b.soc-tt{background:linear-gradient(150deg,rgba(37,244,238,.14),rgba(254,44,85,.1) 60%,rgba(255,255,255,.02));border-color:rgba(255,255,255,.18)}
+
+/* ══ Шапка экрана «Мои брони» — как у остальных экранов ══ */
+.pg-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:max(env(safe-area-inset-top,0px),18px) 20px 14px;flex-shrink:0}
+.pg-t{font-family:var(--F);font-size:28px;font-weight:800;letter-spacing:-.9px;line-height:1.05;
+  background:linear-gradient(120deg,#fff 35%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pg-s{font-size:11.5px;color:var(--t2);margin-top:4px;font-family:var(--m);letter-spacing:.2px}
+.pg-act{flex-shrink:0;padding:10px 14px;border-radius:14px;font-size:12.5px;font-weight:800;color:var(--lime);
+  background:linear-gradient(150deg,rgba(196,255,62,.2),rgba(196,255,62,.05));border:1px solid var(--lime30);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+.pg-act:active{transform:scale(.95)}

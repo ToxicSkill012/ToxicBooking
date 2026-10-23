@@ -63,11 +63,14 @@ class TimeTape{
     root.classList.add('tt')
     root.tabIndex=0
     root.setAttribute('role','slider')
-    root.innerHTML='<div class="tt-vp"><div class="tt-tr"><div class="tt-pre"></div><div class="tt-segs"></div><div class="tt-sel"></div><div class="tt-ticks"></div><div class="tt-lbls"></div><div class="tt-now"></div></div></div><div class="tt-needle"><i></i></div>'
+    // Слои ленты сверху вниз: подписи часов → линейка с делениями → полоса занятости с выбранным отрезком.
+    // Игла стоит по центру, лента едет под ней.
+    root.innerHTML='<div class="tt-glow"></div><div class="tt-vp"><div class="tt-tr"><div class="tt-lbls"></div><div class="tt-ticks"></div><div class="tt-band"></div><div class="tt-pre"></div><div class="tt-segs"></div><div class="tt-sel"><i></i></div><div class="tt-now"><b></b></div></div></div><div class="tt-needle"><i></i></div>'
     this.vp=root.querySelector('.tt-vp');this.tr=root.querySelector('.tt-tr')
     this.segL=root.querySelector('.tt-segs');this.selEl=root.querySelector('.tt-sel')
     this.ticks=root.querySelector('.tt-ticks');this.lbl=root.querySelector('.tt-lbls')
     this.pre=root.querySelector('.tt-pre');this.nowEl=root.querySelector('.tt-now')
+    this.nowEl.querySelector('b').textContent=D.lang!=='ru'?'now':'сейчас'
     let p0=0
     hGesture(this.vp,{
       start:()=>{this._stop();p0=this.pos},
@@ -108,7 +111,9 @@ class TimeTape{
     const w=this.vp.clientWidth||320,px=this.o.px,span=(this.max-this.min)*px
     this.w=w
     this.tr.style.width=span+'px'
+    // До начала диапазона (прошедшее время) — штриховка на полосе, не на всю высоту
     this.pre.style.cssText=`left:${-w/2}px;width:${w/2}px`
+    this.root.querySelector('.tt-band').style.width=span+'px'
     // Деления привязаны к часам: длинное — каждый час, среднее — 15 мин, короткое — 5 мин
     const off=p=>(((p-(this.min%p))%p)*px)+'px',t=this.ticks.style
     t.setProperty('--p5',(5*px)+'px');t.setProperty('--p15',(15*px)+'px');t.setProperty('--p60',(60*px)+'px')
@@ -116,12 +121,12 @@ class TimeTape{
     this._render()
   }
   _labels(){
-    const px=this.o.px,en=D.lang==='en'
+    const px=this.o.px,en=D.lang!=='ru'
     let html=''
     for(let v=this.min+((30-(this.min%30))%30);v<=this.max;v+=30){
       const m=((v%1440)+1440)%1440
       const cls=m===0?' day':m%60?' half':''
-      const txt=m===0?(en?'00:00 · next day':'00:00 · завтра'):minToHM(v)
+      const txt=m===0?(en?'00:00 · next day':'00:00 · завтра'):m%60?minToHM(v):String(Math.floor(m/60)).padStart(2,'0')+':00'
       html+=`<span class="tt-l${cls}" style="left:${(v-this.min)*px}px">${txt}</span>`
     }
     this.lbl.innerHTML=html
@@ -218,10 +223,11 @@ class DurSlider{
     let marks=''
     for(let m=Math.ceil(this.o.min/60)*60;m<=this.o.max;m+=60){
       const big=m===60||m%180===0
-      marks+=`<i class="ds-m${big?' big':''}" style="left:${this._pct(m)}%">${big?`<b>${m/60}${D.lang==='en'?'h':'ч'}</b>`:''}</i>`
+      marks+=`<i class="ds-m${big?' big':''}" style="left:${this._pct(m)}%">${big?`<b>${m/60}${D.lang!=='ru'?'h':'ч'}</b>`:''}</i>`
     }
-    root.innerHTML=`<div class="ds-tr"><div class="ds-fill"></div>${marks}<div class="ds-th"><span></span></div></div>`
-    this.tr=root.querySelector('.ds-tr');this.fill=root.querySelector('.ds-fill');this.th=root.querySelector('.ds-th')
+    // Над кнопкой во время перетаскивания — подсказка «2 ч 30 мин»
+    root.innerHTML=`<div class="ds-tr"><div class="ds-fill"></div>${marks}<div class="ds-th"><span></span><em class="ds-tip"></em></div></div>`
+    this.tr=root.querySelector('.ds-tr');this.fill=root.querySelector('.ds-fill');this.th=root.querySelector('.ds-th');this.tip=root.querySelector('.ds-tip')
     const fromX=x=>{const r=this.tr.getBoundingClientRect();return this.o.min+Math.min(1,Math.max(0,(x-r.left)/r.width))*(this.o.max-this.o.min)}
     let x0=0
     hGesture(root,{
@@ -231,7 +237,7 @@ class DurSlider{
       tap:x=>this._set(fromX(x),true)
     })
     root.addEventListener('pointerdown',()=>root.classList.add('drag'))
-    root.addEventListener('pointerup',()=>root.classList.remove('drag'))
+    ;['pointerup','pointercancel','lostpointercapture'].forEach(ev=>root.addEventListener(ev,()=>root.classList.remove('drag')))
     root.addEventListener('keydown',e=>{
       const k={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[e.key]
       if(k){e.preventDefault();this._set(this.v+k*this.o.step,true)}
@@ -251,6 +257,7 @@ class DurSlider{
     const p=this._pct(this.v)
     this.fill.style.width=p+'%'
     this.th.style.left=p+'%'
+    this.tip.textContent=fmtDur(this.v)
     this.root.setAttribute('aria-valuenow',this.v)
     this.root.setAttribute('aria-valuetext',fmtDur(this.v))
   }
@@ -268,22 +275,4 @@ function holdRepeat(btn,fire){
   ;['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop))
   btn.addEventListener('contextmenu',e=>e.preventDefault())
   btn.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire(0)}})
-}
-
-// Компактное поле времени HH:MM с ±5 мин и точным вводом (оффлайн-бронь в админке)
-function timeField(el,{value,onChange}){
-  el.classList.add('tf')
-  el.innerHTML=`<button type="button" class="tf-b" aria-label="−5 мин">−</button>
-    <label class="tf-v"><span></span><input type="time" step="60" aria-label="Время"></label>
-    <button type="button" class="tf-b" aria-label="+5 мин">+</button>`
-  const [minus,plus]=el.querySelectorAll('.tf-b'),span=el.querySelector('.tf-v span'),inp=el.querySelector('input')
-  let v=value
-  const show=()=>{span.textContent=minToHM(v);inp.value=minToHM(v)}
-  const setV=nv=>{v=((nv%1440)+1440)%1440;show();onChange(v)}
-  holdRepeat(minus,c=>{setV(v-(c>8?15:5));haptic('tick')})
-  holdRepeat(plus,c=>{setV(v+(c>8?15:5));haptic('tick')})
-  inp.addEventListener('click',()=>{try{inp.showPicker()}catch(e){}})
-  inp.addEventListener('change',()=>{if(inp.value)setV(timeToMinJS(inp.value))})
-  show()
-  return {get:()=>v,set:nv=>{v=nv;show()}}
 }

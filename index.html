@@ -21,11 +21,12 @@
 <meta name="referrer" content="no-referrer"/>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=4.1.1">
-<link rel="stylesheet" href="css/glass.css?v=4.1.1">
+<link rel="stylesheet" href="css/app.css?v=4.2.0">
+<link rel="stylesheet" href="css/glass.css?v=4.2.0">
 <script>
 // До загрузки стилей: «лёгкий режим» и класс мощности устройства — без вспышки тяжёлых эффектов
-(function(){var h=document.documentElement;try{if(localStorage.getItem('ts_lowfx')==='1')h.classList.add('pre-lowfx')}catch(e){}
+(function(){var h=document.documentElement;try{localStorage.removeItem('ts_lowfx');var f=localStorage.getItem('ts_fx'),u=+localStorage.getItem('ts_lowfx_until')||0;
+if(f==='off'||(f!=='on'&&u>Date.now()))h.classList.add('pre-lowfx')}catch(e){}
 var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add((m&&m<=3)||c<=2?'fx-lo':'fx-hi')})()
 </script>
 </head>
@@ -347,9 +348,9 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- ════ BOOKINGS LIST ════ -->
 <div id="bklist" class="sc">
-  <div style="padding:max(env(safe-area-inset-top,0px),18px) 20px 14px;flex-shrink:0">
-    <div style="font-family:var(--F);font-size:44px;font-weight:800;letter-spacing:-2px;line-height:.92" id="bkl-title">МОИ<br>БРОНИ</div>
-    <div style="font-size:13px;color:var(--t2);margin-top:6px" id="bkl-sub"></div>
+  <div class="pg-hd">
+    <div><div class="pg-t" id="bkl-title">Мои брони</div><div class="pg-s" id="bkl-sub"></div></div>
+    <button type="button" class="pg-act" onclick="go('home')">＋ Бронь</button>
   </div>
   <div class="sB"><div id="bkl-body" style="padding:0 16px"></div></div>
 </div>
@@ -571,6 +572,10 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
       <div class="TO" onclick="setTheme('toxic',this)" style="background:linear-gradient(135deg,#020c01,#071404)"><div class="to-l">Toxic 🌿</div></div>
     </div>
 
+    <div class="CRD" style="margin-top:10px">
+      <div class="RW"><div><div style="font-size:14px;font-weight:500">Стекло и эффекты</div><div style="font-size:11px;color:var(--t2);margin-top:2px" id="fx-sub">Размытие, подсветка и анимации. Выключи, если телефон тормозит</div></div><div class="TOG on" id="tog-fx" onclick="toggleFx(this)"></div></div>
+    </div>
+
     <div class="SL" style="margin-top:22px" data-i="langTitle">Язык / Language</div>
     <div class="LR">
       <div class="LO sel" id="lo-ru" onclick="setLang('ru')">🇷🇺 Русский</div>
@@ -597,6 +602,7 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     </div>
     <div id="adm-setup" class="setup" style="display:none"></div>
     <div id="adm-bridge" class="bridge" style="display:none"></div>
+    <div id="adm-tg" class="bridge" style="display:none"></div>
 
     <div class="SL" style="margin-top:14px">Статистика</div>
     <div id="admin-dash" style="margin-bottom:8px">
@@ -707,10 +713,10 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div style="background:linear-gradient(135deg,var(--s2),var(--s1));border:1px solid var(--b1);border-radius:var(--R);padding:16px">
       <div style="font-size:11px;color:var(--t2);margin-bottom:12px;line-height:1.5">Подписывайся — розыгрыши, турниры и акции только для подписчиков 🎁</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <a href="https://t.me/toxicskill_brest" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:#229ed9;color:#fff;font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 2px 10px rgba(34,158,217,.3)"><svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.012 9.482c-.148.659-.538.82-1.09.51l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.216-3.053 5.56-5.023c.242-.215-.054-.334-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.562-4.458c.537-.194 1.006.131.886.734z"/></svg> Telegram</a>
-        <a href="https://www.instagram.com/toxicskill_brest?igsh=dnlvc3F0bnluZTdo" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#bc1888);color:#fff;font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 2px 10px rgba(220,39,67,.3)"><svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg> Instagram</a>
-        <a href="https://www.tiktok.com/@toxicskill_brest?_r=1&_t=ZS-94tLLb8Giwr" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:#010101;border:1px solid rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.4)"><svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.11 8.11 0 004.77 1.52V6.76a4.85 4.85 0 01-1-.07z"/></svg> TikTok</a>
-        <a href="https://toxicskill.cfd/" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg,var(--lime),var(--cyan));color:#000;font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 2px 10px rgba(196,255,62,.3)"><svg width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg> Сайт</a>
+        <a href="https://t.me/toxicskill_brest" target="_blank" class="soc-b" style="--sc:34,158,217"><svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.012 9.482c-.148.659-.538.82-1.09.51l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.216-3.053 5.56-5.023c.242-.215-.054-.334-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.562-4.458c.537-.194 1.006.131.886.734z"/></svg> Telegram</a>
+        <a href="https://www.instagram.com/toxicskill_brest?igsh=dnlvc3F0bnluZTdo" target="_blank" class="soc-b soc-ig" style="--sc:225,48,108"><svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg> Instagram</a>
+        <a href="https://www.tiktok.com/@toxicskill_brest?_r=1&_t=ZS-94tLLb8Giwr" target="_blank" class="soc-b soc-tt" style="--sc:37,244,238"><svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.11 8.11 0 004.77 1.52V6.76a4.85 4.85 0 01-1-.07z"/></svg> TikTok</a>
+        <a href="https://toxicskill.cfd/" target="_blank" class="soc-b" style="--sc:196,255,62"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg> Сайт</a>
       </div>
     </div>
 
@@ -1083,55 +1089,8 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- ════ АДМИН: ОФФЛАЙН-БРОНЬ ════ -->
 <div id="admin-book-m" class="MBG" onclick="if(event.target===this)closeM('admin-book-m')">
-  <div class="MOD" style="max-height:88%;overflow-y:auto;padding-bottom:24px">
-    <div class="MH"></div>
-    <div style="text-align:center;margin-bottom:18px">
-      <div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#4b9eff,#2aedb5);margin-bottom:10px;box-shadow:0 8px 24px rgba(75,158,255,.3)"><span style="font-size:30px">📞</span></div>
-      <div style="font-family:var(--F);font-size:20px;font-weight:800;letter-spacing:-.7px">Оффлайн-бронь</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:4px">Бронь по телефону / визиту</div>
-    </div>
-
-    <!-- Зона -->
-    <div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:2px;margin-bottom:8px">ЗОНА</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:18px">
-      <div onclick="adminSelectZone('std')" id="abz-std" class="ab-zone" style="padding:12px 6px;border-radius:13px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer"><div style="font-size:18px">⚡</div><div style="font-size:11px;font-weight:700;margin-top:3px">Standard</div></div>
-      <div onclick="adminSelectZone('vip')" id="abz-vip" class="ab-zone" style="padding:12px 6px;border-radius:13px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer"><div style="font-size:18px">👑</div><div style="font-size:11px;font-weight:700;margin-top:3px">VIP</div></div>
-      <div onclick="adminSelectZone('bc')" id="abz-bc" class="ab-zone" style="padding:12px 6px;border-radius:13px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer"><div style="font-size:18px">🏆</div><div style="font-size:11px;font-weight:700;margin-top:3px">Boot</div></div>
-    </div>
-
-    <!-- Дата + время + длительность -->
-    <div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:2px;margin-bottom:8px">КОГДА</div>
-    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px">
-      <input id="ab-date" type="date" class="INP" onchange="loadAdminPcs()">
-      <div class="tf-row">
-        <span>⏰ Старт</span>
-        <div id="ab-time" class="tf"></div>
-      </div>
-      <div style="display:flex;gap:7px" id="ab-dur-row">
-        <div onclick="adminSelectDur(1)" id="abd-1" class="ab-dur" style="flex:1;padding:10px;border-radius:11px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;font-size:13px;font-weight:700">1ч</div>
-        <div onclick="adminSelectDur(2)" id="abd-2" class="ab-dur" style="flex:1;padding:10px;border-radius:11px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;font-size:13px;font-weight:700">2ч</div>
-        <div onclick="adminSelectDur(3)" id="abd-3" class="ab-dur" style="flex:1;padding:10px;border-radius:11px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;font-size:13px;font-weight:700">3ч</div>
-        <div onclick="adminSelectDur(5)" id="abd-5" class="ab-dur" style="flex:1;padding:10px;border-radius:11px;background:var(--s1);border:2px solid var(--b1);text-align:center;cursor:pointer;font-size:13px;font-weight:700">5ч</div>
-      </div>
-    </div>
-
-    <!-- ПК -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:2px">ВЫБЕРИ ПК</span>
-      <span style="font-size:11px;color:var(--blue);font-weight:700" id="ab-pc-sel">не выбраны</span>
-    </div>
-    <div id="ab-pc-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:18px;min-height:50px">
-      <div style="grid-column:1/-1;text-align:center;color:var(--t3);font-size:11px;padding:14px">Выбери дату</div>
-    </div>
-
-    <!-- Имя -->
-    <input id="ab-name" class="INP" placeholder="Имя клиента (необязательно)" style="margin-bottom:16px">
-
-    <div style="display:flex;gap:8px">
-      <button class="BTN ghost" onclick="closeM('admin-book-m')" style="flex:1">Отмена</button>
-      <button class="BTN" id="ab-book-btn" onclick="createAdminBooking()" style="flex:2;background:linear-gradient(135deg,#4b9eff,#2aedb5);color:#000;font-weight:800">📞 Создать</button>
-    </div>
-  </div>
+  <!-- Содержимое собирает openAdminBooking() в js/admin/offline.js -->
+  <div class="MOD ab-mod"></div>
 </div>
 
 <!-- ════ ЧТО НОВОГО ════ -->
@@ -1140,18 +1099,18 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div class="MH"></div>
     <div style="text-align:center;padding:2px 0 16px">
       <div class="wn-badge-ico"><span>✨</span></div>
-      <div class="wn-ver">ОБНОВЛЕНИЕ v4.1</div>
+      <div class="wn-ver">ОБНОВЛЕНИЕ v4.2</div>
       <div class="wn-title">Что нового</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:5px">Своё время, бронь для команды и новая лента</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:5px">Честная занятость, новая лента и стекло везде</div>
     </div>
 
     <div class="wn-list">
-      <div class="wn-item lime"><div class="wn-ic">🟢</div><div><b>Занятость в реальном времени</b><span>На карточках зон — каждый ПК огоньком: свободен, скоро бронь или занят прямо сейчас</span></div></div>
-      <div class="wn-item lime"><div class="wn-ic">⏱</div><div><b>Своё время</b><span>Не только пакеты: играй сколько нужно — от 30 минут до 12 часов. Если пакет выгоднее — подскажем</span></div></div>
-      <div class="wn-item blue"><div class="wn-ic">👥</div><div><b>Бронь для команды</b><span>До 8 ПК рядом одной бронью: выбери число игроков — места подберутся сами</span></div></div>
-      <div class="wn-item gold"><div class="wn-ic">🎚</div><div><b>Новая лента времени</b><span>Листай пальцем с инерцией, жми на нужную минуту — сразу видно, где мало свободных ПК</span></div></div>
-      <div class="wn-item pink"><div class="wn-ic">✅</div><div><b>Только свободные ПК</b><span>Сначала выбираешь время — потом показываем компьютеры, которые свободны именно тогда</span></div></div>
-      <div class="wn-item"><div class="wn-ic">🎟</div><div><b>Бронь-билет</b><span>После брони — красивый билет с временем, ПК и суммой: покажи его на кассе</span></div></div>
+      <div class="wn-item lime"><div class="wn-ic">🟢</div><div><b>Честная занятость ПК</b><span>«Занят до 19:45», если клуб знает конец сессии, или «в игре 40 мин» — без выдуманного времени</span></div></div>
+      <div class="wn-item gold"><div class="wn-ic">🎚</div><div><b>Новая лента времени</b><span>Крупные часы, линейка до 5 минут и полоса занятости: сразу видно, когда свободно</span></div></div>
+      <div class="wn-item blue"><div class="wn-ic">⏱</div><div><b>Ползунок длительности</b><span>Тянешь — над пальцем подсказка «2 ч 30 мин», цена пересчитывается сразу</span></div></div>
+      <div class="wn-item pink"><div class="wn-ic">✨</div><div><b>Стекло на всех экранах</b><span>Если телефон тормозит — в настройках есть «Стекло и эффекты», можно выключить</span></div></div>
+      <div class="wn-item"><div class="wn-ic">🕒</div><div><b>Точное время</b><span>Приложение сверяет часы с клубом — таймеры верные, даже если на телефоне время сбито</span></div></div>
+      <div class="wn-item lime"><div class="wn-ic">👥</div><div><b>Своё время и бронь для команды</b><span>От 30 минут до 12 часов, до 8 ПК рядом одной бронью</span></div></div>
     </div>
 
     <div class="wn-fb">
@@ -1215,31 +1174,31 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- Toast -->
 <div id="toast"></div>
-<script defer src="js/core/guard.js?v=4.1.1"></script>
-<script defer src="js/core/i18n.js?v=4.1.1"></script>
-<script defer src="js/core/config.js?v=4.1.1"></script>
-<script defer src="js/core/clock.js?v=4.1.1"></script>
-<script defer src="js/core/api.js?v=4.1.1"></script>
-<script defer src="js/core/state.js?v=4.1.1"></script>
-<script defer src="js/core/diag.js?v=4.1.1"></script>
-<script defer src="js/core/ui.js?v=4.1.1"></script>
-<script defer src="js/screens/home.js?v=4.1.1"></script>
-<script defer src="js/screens/onboarding.js?v=4.1.1"></script>
-<script defer src="js/booking/time-picker.js?v=4.1.1"></script>
-<script defer src="js/booking/booking.js?v=4.1.1"></script>
-<script defer src="js/core/bookings-api.js?v=4.1.1"></script>
-<script defer src="js/screens/my-bookings.js?v=4.1.1"></script>
-<script defer src="js/screens/rewards.js?v=4.1.1"></script>
-<script defer src="js/screens/profile.js?v=4.1.1"></script>
-<script defer src="js/screens/achievements.js?v=4.1.1"></script>
-<script defer src="js/screens/promo.js?v=4.1.1"></script>
-<script defer src="js/screens/settings.js?v=4.1.1"></script>
-<script defer src="js/extras/snake.js?v=4.1.1"></script>
-<script defer src="js/extras/fx.js?v=4.1.1"></script>
-<script defer src="js/admin/offline.js?v=4.1.1"></script>
-<script defer src="js/admin/admin.js?v=4.1.1"></script>
-<script defer src="js/extras/hints.js?v=4.1.1"></script>
-<script defer src="js/core/live.js?v=4.1.1"></script>
-<script defer src="js/main.js?v=4.1.1"></script>
+<script defer src="js/core/guard.js?v=4.2.0"></script>
+<script defer src="js/core/i18n.js?v=4.2.0"></script>
+<script defer src="js/core/config.js?v=4.2.0"></script>
+<script defer src="js/core/clock.js?v=4.2.0"></script>
+<script defer src="js/core/api.js?v=4.2.0"></script>
+<script defer src="js/core/state.js?v=4.2.0"></script>
+<script defer src="js/core/diag.js?v=4.2.0"></script>
+<script defer src="js/core/ui.js?v=4.2.0"></script>
+<script defer src="js/screens/home.js?v=4.2.0"></script>
+<script defer src="js/screens/onboarding.js?v=4.2.0"></script>
+<script defer src="js/booking/time-picker.js?v=4.2.0"></script>
+<script defer src="js/booking/booking.js?v=4.2.0"></script>
+<script defer src="js/core/bookings-api.js?v=4.2.0"></script>
+<script defer src="js/screens/my-bookings.js?v=4.2.0"></script>
+<script defer src="js/screens/rewards.js?v=4.2.0"></script>
+<script defer src="js/screens/profile.js?v=4.2.0"></script>
+<script defer src="js/screens/achievements.js?v=4.2.0"></script>
+<script defer src="js/screens/promo.js?v=4.2.0"></script>
+<script defer src="js/screens/settings.js?v=4.2.0"></script>
+<script defer src="js/extras/snake.js?v=4.2.0"></script>
+<script defer src="js/extras/fx.js?v=4.2.0"></script>
+<script defer src="js/admin/offline.js?v=4.2.0"></script>
+<script defer src="js/admin/admin.js?v=4.2.0"></script>
+<script defer src="js/extras/hints.js?v=4.2.0"></script>
+<script defer src="js/core/live.js?v=4.2.0"></script>
+<script defer src="js/main.js?v=4.2.0"></script>
 </body>
 </html>

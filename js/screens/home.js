@@ -19,7 +19,7 @@ function doLogin(btn){
 
 function updateGr(){
   // Время клуба, а не телефона — у всех одинаково
-  const now=new Date(Date.now()+CLUB_TZ_OFFSET*60000),L=I18N[D.lang]
+  const now=new Date(srvNow()+CLUB_TZ_OFFSET*60000),L=I18N[D.lang]
   const el=document.getElementById('gr-t')
   if(el)el.textContent=`${L.DAYS[now.getUTCDay()]}, ${now.getUTCDate()} ${L.MONTHS[now.getUTCMonth()]} · ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`
   // Персональное приветствие по времени суток
@@ -64,8 +64,10 @@ function setLang(l){D.lang=l;sv();applyLang()}
 // THEME
 // ═══════════════════════════════════════════════
 function setTheme(cls,el){
-  const isOb=document.body.classList.contains('onboarding')
-  document.body.className=(cls?cls+' ':'')+(isOb?'onboarding':'');D.theme=cls;sv()
+  // Меняем только класс темы: раньше className перезаписывался целиком и пропадали tg-fs, lowfx и другие
+  document.body.classList.remove('amoled','toxic')
+  if(cls)document.body.classList.add(cls)
+  D.theme=cls;sv()
   document.querySelectorAll('.TO').forEach(x=>x.classList.remove('sel'))
   el.classList.add('sel')
 }
