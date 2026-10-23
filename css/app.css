@@ -114,7 +114,6 @@ a{text-decoration:none;color:inherit}
 /* Облегчённый режим гасит ТОЛЬКО декоративное.
    Спиннеры, индикаторы загрузки и переходы работают всегда! */
 body.lowfx .ZG,html.pre-lowfx .ZG{display:none}
-body.lowfx #app::before,html.pre-lowfx #app::before{background:none}
 body.lowfx .TB::after,body.lowfx .BN::before,html.pre-lowfx .TB::after,html.pre-lowfx .BN::before{animation:none;opacity:.35}
 body.lowfx .ph-av::after,html.pre-lowfx .ph-av::after{animation:none}
 body.lowfx .spark,html.pre-lowfx .spark{display:none}

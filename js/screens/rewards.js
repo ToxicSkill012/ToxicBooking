@@ -11,8 +11,11 @@ async function loadServerPoints(){
     const r=await fetch(API_URL+'?'+new URLSearchParams({action:'getPoints',tgId}),{cache:'no-store'})
     const d=await r.json()
     if(d.ok&&d.balance!==undefined){
+      const changed=d.balance!==D.user.pts
       D.user.pts=d.balance;sv()
       const el=document.getElementById('pts-val');if(el)el.textContent=d.balance
+      // Баланс изменился (бонус от админа, ДР) — перерисовываем профиль целиком: замки наград, прогресс, счётчик
+      if(changed&&D.cur==='profile')renderProfile()
     }
   }catch(e){}
 }

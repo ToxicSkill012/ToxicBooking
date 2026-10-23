@@ -106,7 +106,7 @@ function renderPromoList(){
       ${p.bonus?`+${p.bonus}h`:''} ${p.bonus&&p.disc?'·':''} ${p.disc?`-${p.disc}%`:''} &nbsp;·&nbsp; ${p.used}/${p.uses} ${_('usesLeft')}
     </div>
     <div style="padding:0 12px 12px;display:flex;gap:7px">
-      <button onclick="togP(${i})" style="padding:7px 13px;border-radius:9px;background:${p.on?'var(--red08)':'var(--lime08)'};border:1px solid ${p.on?'var(--red25)':'var(--lime30)'};color:${p.on?'var(--red)':'var(--lime)'};font-size:12px;font-weight:600;cursor:pointer">${p.on?(D.lang==='en'?'⏸ Off':'⏸ Выкл'):(D.lang==='en'?'▶ On':'▶ Вкл')}</button>
+      <button onclick="togP(${i})" style="padding:7px 13px;border-radius:9px;background:${p.on?'var(--red08)':'var(--lime08)'};border:1px solid ${p.on?'var(--red25)':'var(--lime30)'};color:${p.on?'var(--red)':'var(--lime)'};font-size:12px;font-weight:600;cursor:pointer">${p.on?(D.lang!=='ru'?'⏸ Off':'⏸ Выкл'):(D.lang!=='ru'?'▶ On':'▶ Вкл')}</button>
       <button onclick="delP(${i})" style="padding:7px 13px;border-radius:9px;background:var(--s3);border:1px solid var(--b1);color:var(--t2);font-size:12px;font-weight:600;cursor:pointer">🗑</button>
     </div>
   </div>`).join('')

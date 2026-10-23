@@ -15,16 +15,19 @@ function checkOnline(){
 
 // ═══ СТАТУС ЗАНЯТОСТИ ПК ═══
 // Gizmo показывает живые сессии (и сколько осталось), брони — будущее.
+// ts — когда загрузили (часы телефона), updatedAt — когда мост прислал данные (часы сервера)
 let _gizmoCache={hosts:[],ts:0,source:'none',updatedAt:0}
 const GIZMO_STALE_MS=5*60000 // мост молчит дольше — данным Gizmo не верим
 
 async function loadGizmoStatus(){
   try{
-    const r=await fetch(API_URL+'?'+new URLSearchParams({action:'getGizmoStatus',_t:Date.now()}),{cache:'no-store'})
+    const t0=Date.now()
+    const r=await fetch(API_URL+'?'+new URLSearchParams({action:'getGizmoStatus',_t:t0}),{cache:'no-store'})
     const d=await r.json()
+    syncClock(d.now,t0)
     if(d.ok&&d.hosts&&d.hosts.length>0){
       const upd=d.updatedAt?new Date(d.updatedAt).getTime():NaN
-      _gizmoCache={hosts:d.hosts,ts:Date.now(),source:d.source||'gizmo',updatedAt:isNaN(upd)?Date.now():upd}
+      _gizmoCache={hosts:d.hosts,ts:Date.now(),source:d.source||'gizmo',updatedAt:isNaN(upd)?srvNow():upd}
       renderLive()
       return d
     }
@@ -33,7 +36,7 @@ async function loadGizmoStatus(){
 }
 
 function gizmoFresh(){
-  return _gizmoCache.hosts.length>0&&Date.now()-_gizmoCache.ts<180000&&Date.now()-_gizmoCache.updatedAt<GIZMO_STALE_MS
+  return _gizmoCache.hosts.length>0&&Date.now()-_gizmoCache.ts<180000&&srvNow()-_gizmoCache.updatedAt<GIZMO_STALE_MS
 }
 function gizmoHost(pcLabel){
   if(!gizmoFresh())return null
@@ -50,8 +53,20 @@ function gizmoLeftMin(pcLabel){
   if(h.left!==null&&h.left!==undefined&&h.left!==''&&!isNaN(+h.left)){
     return Math.max(0,Math.round(+h.left-(Date.now()-_gizmoCache.ts)/60000))
   }
-  if(h.until){const t=new Date(h.until).getTime();if(!isNaN(t))return Math.max(0,Math.ceil((t-Date.now())/60000))}
+  if(h.until){const t=new Date(h.until).getTime();if(!isNaN(t))return Math.max(0,Math.ceil((t-srvNow())/60000))}
   return null
+}
+// «в игре 40 мин» / «только сел» — когда конец сессии неизвестен, но видели её начало
+function playingLabel(m){
+  const en=D.lang!=='ru'
+  return m<1?(en?'just sat down':'только сел'):(en?'playing ':'в игре ')+fmtDur(m)
+}
+// Сколько минут уже идёт сессия (null — мост не знает, сервер не видел её начало)
+function gizmoSinceMin(pcLabel){
+  const h=gizmoHost(pcLabel);if(!h||!h.busy||!h.since)return null
+  const t=new Date(h.since).getTime();if(isNaN(t))return null
+  const m=Math.floor((srvNow()-t)/60000)
+  return m>=0&&m<24*60?m:null
 }
 
 // Брони ПК как отрезки [начало, конец) в абсолютных минутах
@@ -104,7 +119,8 @@ function pcLive(pcLabel,bookings){
   if(cur){until=Math.max(until||0,cur[1]);source=source||'booking'}
   if(source){
     if(until!==null)until=chainEnd(ranges,until)
-    return {state:'busy',untilAbs:until,leftMin:until!==null?until-now:null,source}
+    // Остаток неизвестен (мост из консоли шлёт только «занят») — показываем, сколько уже играют, а не выдуманное «до»
+    return {state:'busy',untilAbs:until,leftMin:until!==null?until-now:null,source,sinceMin:until===null?gizmoSinceMin(pcLabel):null}
   }
   const next=ranges.find(r=>r[0]>now)
   if(next&&next[0]-now<=60)return {state:'soon',nextAbs:next[0],inMin:next[0]-now}
@@ -113,28 +129,33 @@ function pcLive(pcLabel,bookings){
 
 // Подпись статуса для плиток и карточек
 function liveLabel(st){
-  const en=D.lang==='en'
+  const en=D.lang!=='ru'
   if(st.state==='busy'){
     const who=st.source==='gizmo'?(en?'In use':'Занят'):(en?'Booked':'Бронь')
-    if(st.untilAbs===null)return {main:who,sub:en?'now':'сейчас',cls:'busy'}
+    if(st.untilAbs===null)return {main:who,sub:st.sinceMin!=null?playingLabel(st.sinceMin):(en?'now':'сейчас'),cls:'busy'}
     return {main:(en?'till ':'до ')+fmtAbs(st.untilAbs),sub:(en?'':'ещё ')+fmtDur(st.leftMin),cls:'busy',who}
   }
   if(st.state==='soon')return {main:(en?'free till ':'свободен до ')+minToHM(st.nextAbs),sub:(en?'booking in ':'бронь через ')+fmtDur(st.inMin),cls:'soon'}
   return {main:en?'free':'свободен',sub:st.nextAbs?((en?'till ':'до ')+fmtAbs(st.nextAbs)):(en?'all day':'весь день'),cls:'free'}
 }
 
-// ═══ Сколько ПК свободно прямо сейчас — на главной и на карточках зон ═══
+// ═══ Занятость прямо сейчас — на главной: счётчик и точки-ПК на карточках зон ═══
 const TOTAL_PCS=Object.keys(ZONES).reduce((s,k)=>s+ZONES[k].pcCount,0)
 let _liveKey=''
 function renderLive(){
   const bookings=_bookingsCache.loaded?_bookingsCache.data:[]
-  const free={}
+  const en=D.lang!=='ru',fresh=gizmoFresh()
+  const zones={}
   let total=0
   Object.keys(ZONES).forEach(k=>{
-    free[k]=zonePcs(k).filter(lbl=>pcLive(lbl,bookings).state!=='busy').length
-    total+=free[k]
+    zones[k]=zonePcs(k).sort().map(lbl=>{
+      const st=pcLive(lbl,bookings)
+      const L=liveLabel(st)
+      return {lbl,s:st.state,t:`${lbl} · ${L.main}${st.state!=='free'&&L.sub?' · '+L.sub:''}`}
+    })
+    total+=zones[k].filter(p=>p.s!=='busy').length
   })
-  const key=JSON.stringify(free)
+  const key=fresh+JSON.stringify(zones)
   if(key===_liveKey)return
   _liveKey=key
   const el=document.getElementById('free-count')
@@ -142,12 +163,20 @@ function renderLive(){
     el.textContent=total
     el.style.color=total<=3?'var(--red)':total<=8?'var(--gold)':'var(--lime)'
   }
-  // На карточке зоны: «9/13 свободно»
+  const pill=document.querySelector('.pill.live-shimmer')
+  if(pill)pill.title=fresh?(en?'live from the club':'онлайн из клуба'):(en?'by bookings':'по броням')
   Object.keys(ZONES).forEach(k=>{
-    const t=document.querySelector(`.ZC.${k} .Ztag`)
+    const card=document.querySelector(`.ZC.${k}`);if(!card)return
+    const free=zones[k].filter(p=>p.s!=='busy').length
+    const t=card.querySelector('.Ztag')
     if(t){
-      t.innerHTML=`<i class="zfree${free[k]?'':' none'}"></i>${free[k]}/${ZONES[k].pcCount}${k==='std'?(D.lang==='en'?' free':' свободно'):''}`
-      t.title=D.lang==='en'?'free now':'свободно сейчас'
+      t.innerHTML=`<i class="zfree${free?'':' none'}"></i>${free}/${ZONES[k].pcCount}${k==='std'?(en?' free':' свободно'):''}`
+      t.title=en?'free now':'свободно сейчас'
     }
+    // Точки-ПК: зелёный — свободен, жёлтый — скоро бронь, красный — занят
+    let dots=card.querySelector('.zdots')
+    if(!dots){dots=document.createElement('div');dots.className='zdots';const p=card.querySelector('.Zp');card.insertBefore(dots,p||null)}
+    dots.innerHTML=zones[k].map(p=>`<i class="zd ${p.s}" title="${p.t}"></i>`).join('')
+    dots.setAttribute('aria-label',zones[k].map(p=>p.t).join('; '))
   })
 }

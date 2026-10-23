@@ -1,6 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║     TOXICSKILL — Google Apps Script Backend v7               ║
+// ║     TOXICSKILL — Google Apps Script Backend v7.3             ║
 // ║                                                              ║
+// ║  v7.3: уведомления владельцу с запасным ботом и проверкой,   ║
+// ║        честный статус ПК без выдуманного «осталось»          ║
 // ║  ЧТО НОВОГО В v7:                                            ║
 // ║  • Цена считается на сервере по тарифу (TARIFF ниже):        ║
 // ║    пакеты + «своё время» (за каждые начатые 30 минут)        ║
@@ -27,11 +29,18 @@
 // 🔐 СЕКРЕТЫ — В «СВОЙСТВАХ СКРИПТА», НЕ В КОДЕ
 // ════════════════════════════════
 const PROPS = PropertiesService.getScriptProperties()
-const BOT_TOKEN      = PROPS.getProperty('BOT_TOKEN') || ''       // toxicskill_booking_bot — сообщения АДМИНУ (брони, репорты)
-const USER_BOT_TOKEN = PROPS.getProperty('USER_BOT_TOKEN') || ''  // toxicskill_bot — сообщения ПОЛЬЗОВАТЕЛЯМ (напоминания, ДР, бонусы, рассылка)
-const ADMIN_KEY      = PROPS.getProperty('ADMIN_KEY') || ''       // запасной вход владельца (🔑 в приложении)
-const BRIDGE_KEY     = PROPS.getProperty('BRIDGE_KEY') || ''      // ключ Gizmo Bridge (пусто = мост пускается без ключа)
-const ADMIN_CHAT_ID  = PROPS.getProperty('ADMIN_CHAT_ID') || '8523093520'
+// Лишний пробел или перенос строки при вставке значения ломал запросы к Telegram — обрезаем
+function prop_(k) { return String(PROPS.getProperty(k) || '').trim() }
+const BOT_TOKEN      = prop_('BOT_TOKEN')       // toxicskill_booking_bot — сообщения АДМИНУ (брони, репорты)
+const USER_BOT_TOKEN = prop_('USER_BOT_TOKEN')  // toxicskill_bot — сообщения ПОЛЬЗОВАТЕЛЯМ (напоминания, ДР, бонусы, рассылка)
+const ADMIN_KEY      = prop_('ADMIN_KEY')       // запасной вход владельца (🔑 в приложении)
+const BRIDGE_KEY     = prop_('BRIDGE_KEY')      // ключ Gizmo Bridge (пусто = мост пускается без ключа)
+const OWNER_ID       = '8523093520'             // Telegram ID владельца
+// Куда слать уведомления о бронях: один или несколько чатов через запятую (по умолчанию — владельцу)
+const ADMIN_CHAT_ID  = prop_('ADMIN_CHAT_ID') || OWNER_ID
+const ADMIN_CHATS    = ADMIN_CHAT_ID.split(/[\s,;]+/).filter(String)
+// Кто входит в панель владельца: владелец, ADMIN_IDS (через запятую) и личные чаты из ADMIN_CHAT_ID
+const ADMIN_IDS      = [OWNER_ID].concat(prop_('ADMIN_IDS').split(/[\s,;]+/), ADMIN_CHATS).filter(function(x){ return /^\d+$/.test(x) })
 
 // ════════════════════════════════
 // НАСТРОЙКИ — МЕНЯЙ ТОЛЬКО ЗДЕСЬ
@@ -45,7 +54,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.0'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.3'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -104,7 +113,7 @@ function setupAllSheets() {
   if (!String(bs.getRange(1, 15).getValue())) bs.getRange(1, 15).setValue('group').setFontWeight('bold')
   ensure(SHEET_POINTS,   ['timestamp','tgId','user','phone','action','amount','reason','bookingId','balance'])
   ensure(SHEET_REWARDS,  ['voucherId','tgId','user','phone','rewardId','label','hours','zone','cost','createdAt','expiresAt','status','usedAt'])
-  ensure(SHEET_GIZMO,    ['pc','zone','busy','online','user','until','updatedAt'])
+  ensure(SHEET_GIZMO,    ['pc','zone','busy','online','user','until','updatedAt','since'])
   ensure(SHEET_PROMOLOG, ['timestamp','code','tgId','user','phone','bonus','disc'])
   ensure(SHEET_REVIEWS,  ['timestamp','tgId','user','rating','text','replied'])
   ensure(SHEET_USERS,    ['tgId','name','phone','birthday','lastBdayBonus','updatedAt','banned','tempBanUntil','notifPrefs'])
@@ -216,7 +225,24 @@ function trustedTgId_(p) {
 }
 
 // 🔑 Gizmo Bridge: если BRIDGE_KEY задан — без него мост не пускаем
-function bridgeOk_(p) { return !BRIDGE_KEY || String(p.key||'') === BRIDGE_KEY }
+// Старый мост (тот, что запускается из консоли) шлёт статус ПК без ключа. Принимаем его, как раньше,
+// чтобы занятость в приложении не пропадала. Чужой/неверный ключ — отказ.
+// Строгий режим: свойство скрипта BRIDGE_STRICT = 1 — тогда мост пускается только с ключом.
+const BRIDGE_STRICT = PROPS.getProperty('BRIDGE_STRICT') === '1'
+function bridgeKeyed_(p) { return !!BRIDGE_KEY && String(p.key||'') === BRIDGE_KEY }
+function bridgeOk_(p) {
+  if (!BRIDGE_KEY || bridgeKeyed_(p)) return true
+  if (!p.key && !BRIDGE_STRICT) {
+    try { CacheService.getScriptCache().put('bridge_legacy', new Date().toISOString(), 21600) } catch(e) {}
+    return true
+  }
+  return false
+}
+// Мост постучался без ключа или с чужим — запоминаем, чтобы владелец увидел это в панели
+function bridgeReject_(p, action) {
+  try { CacheService.getScriptCache().put('bridge_rej', JSON.stringify({ at:new Date().toISOString(), action:action, hadKey:!!(p && p.key) }), 21600) } catch(e) {}
+  return { ok:false, error:'bridge_key' }
+}
 
 // ═══════════════════════════════════════════════
 // GET
@@ -236,12 +262,14 @@ function doGet(e) {
   if (a === 'getRewardsTable') return json({ ok:true, rewards:REWARDS, expiry:PTS.voucherExpiry })
   if (a === 'getGizmoStatus') return json(getGizmoStatus())
   if (a === 'gizmoSync') {
-    if (!bridgeOk_(p)) return json({ ok:false, error:'bridge_key' })
+    if (!bridgeOk_(p)) return json(bridgeReject_(p, a))
     return json(gizmoSyncCompact(p.hosts, p.total, p.busy, p.free))
   }
   if (a === 'getPendingBookings' || a === 'markGizmoSynced') {
-    if (!bridgeOk_(p) && !verifyAdmin(p)) return json({ ok:false, error:'bridge_key' })
-    if (a === 'getPendingBookings') return json(getPendingBookings())
+    var adm = verifyAdmin(p)
+    if (!bridgeOk_(p) && !adm) return json(bridgeReject_(p, a))
+    // Телефоны клиентов — только мосту с ключом или админу
+    if (a === 'getPendingBookings') return json(getPendingBookings(bridgeKeyed_(p) || adm))
     return json(markGizmoSynced(p.id))
   }
   if (a === 'awardGroupPoints') return json(awardGroupPoints(trustedTgId_(p), san(p.user,60), p.isTg==='1'))
@@ -260,17 +288,29 @@ function doGet(e) {
       } catch(e) { bu = '?' }
       CacheService.getScriptCache().put('botuser', bu, 600)
     }
+    // 🖥️ Состояние моста Gizmo: когда последний раз прислал данные и не стучится ли без ключа
+    var gzs = { hosts:[], updatedAt:'' }, rej = null
+    try { gzs = gizmoLoad_() } catch(e) {}
+    try { rej = JSON.parse(CacheService.getScriptCache().get('bridge_rej') || 'null') } catch(e) {}
     return json({ ok:true, v:BACKEND_V, access:dg.ok, why:dg.why, hasInit:!!p.initData, hasKey:!!p.adminKey, bot:bu,
-      secrets:{ bot:!!BOT_TOKEN, userBot:!!USER_BOT_TOKEN, adminKey:!!ADMIN_KEY, bridgeKey:!!BRIDGE_KEY } })
+      secrets:{ bot:!!BOT_TOKEN, userBot:!!USER_BOT_TOKEN, adminKey:!!ADMIN_KEY, bridgeKey:!!BRIDGE_KEY },
+      gizmo:{ updatedAt:gzs.updatedAt || '', hosts:gzs.hosts.length, busy:gzs.hosts.filter(function(h){ return h.busy }).length, staleMin:GIZMO_STALE_MIN, rejected:rej,
+        withLeft:gzs.hosts.filter(function(h){ return h.busy && h.until }).length,
+        legacyAt: CacheService.getScriptCache().get('bridge_legacy') || '', strict: BRIDGE_STRICT },
+      // 🔔 Уведомления владельцу: чем закончилась последняя отправка (только владельцу — там текст ошибки)
+      tg: dg.ok ? tgStatus_() : null,
+      // Ключ моста — только подтверждённому владельцу, чтобы вписать его в адрес моста
+      bridgeKey: dg.ok ? BRIDGE_KEY : '' })
   }
-  if (a === 'adminFind' || a === 'adminPoints' || a === 'adminBan' || a === 'adminBroadcast' || a === 'adminMaint' || a === 'adminMsg' || a === 'adminSetBal' || a === 'adminTempBan' || a === 'adminClubStats' || a === 'adminRunBday' || a === 'adminBookings') {
+  if (a === 'adminFind' || a === 'adminPoints' || a === 'adminBan' || a === 'adminBroadcast' || a === 'adminMaint' || a === 'adminMsg' || a === 'adminSetBal' || a === 'adminTempBan' || a === 'adminClubStats' || a === 'adminRunBday' || a === 'adminBookings' || a === 'adminTestTg') {
     var av = verifyAdminEx(p)
     if (!av.ok) return json({ ok:false, error:'Доступ запрещён ('+av.why+')' })
+    if (a === 'adminTestTg')    return json(adminTestTg())
     if (a === 'adminFind')      return json(adminFindUser(san(p.q,60)))
     if (a === 'adminPoints')    return json(adminAdjustPoints(san(p.tgId,20), p.amount, san(safeDec(p.reason||''),100)))
     if (a === 'adminBan')       return json(adminSetBan(san(p.tgId,20), p.on === '1'))
     if (a === 'adminBroadcast') return json(adminBroadcast(san(safeDec(p.text||''),500)))
-    if (a === 'adminMaint')     return json(setMaintenance(p.on === '1', san(safeDec(p.msg||''),200)))
+    if (a === 'adminMaint')     return json(setMaintenance(p.on === '1', san(safeDec(p.msg||''),200), san(String(p.eta||''),5)))
     if (a === 'adminMsg')       return json(adminMessage(san(p.tgId,20), san(safeDec(p.text||''),500)))
     if (a === 'adminSetBal')    return json(adminSetBalance(san(p.tgId,20), p.target))
     if (a === 'adminTempBan')   return json(adminTempBan(san(p.tgId,20), p.days))
@@ -339,7 +379,7 @@ function doPost(e) {
     if (a==='cancelBooking') return json(cancelBooking(san(String(d.id||''),30), trustedTgId_(d), verifyAdmin(d), String(d.all) === '1'))
     if (a==='redeemReward')  return json(redeemReward(san(String(d.rewardId||''),10), trustedTgId_(d), san(String(d.user||''),60), san(String(d.phone||''),20)))
     if (a==='gizmoSync') {
-      if (!bridgeOk_(d)) return json({ ok:false, error:'bridge_key' })
+      if (!bridgeOk_(d)) return json(bridgeReject_(d, a))
       return json(gizmoSync(d.hosts))
     }
 
@@ -361,22 +401,85 @@ function doPost(e) {
 // ═══════════════════════════════════════════════
 // TELEGRAM (токен ТОЛЬКО В СВОЙСТВАХ СКРИПТА!)
 // ═══════════════════════════════════════════════
-function sendTg(text) {
-  if (!text || !BOT_TOKEN) return { ok:false }
+// Текст от клиента — в HTML-сообщение Telegram. Без этого «&» или «<» в имени ломали всё сообщение.
+function tgEsc_(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+// Один запрос к Telegram Bot API → { ok, code, desc }. Ошибку не прячем — по ней видно, что чинить.
+function tgCall_(token, method, payload) {
+  if (!token) return { ok:false, code:0, desc:'no_token' }
   try {
-    const r = UrlFetchApp.fetch('https://api.telegram.org/bot'+BOT_TOKEN+'/sendMessage', {
-      method:'post', contentType:'application/json',
-      payload:JSON.stringify({ chat_id:ADMIN_CHAT_ID, text:text, parse_mode:'HTML' }),
-      muteHttpExceptions:true
-    })
-    return { ok: JSON.parse(r.getContentText()).ok }
-  } catch(e) { return { ok:false } }
+    var r = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/' + method, {
+      method:'post', contentType:'application/json', payload:JSON.stringify(payload), muteHttpExceptions:true })
+    var j = {}
+    try { j = JSON.parse(r.getContentText()) } catch(pe) {}
+    return { ok:!!j.ok, code:j.error_code || (r.getResponseCode ? r.getResponseCode() : 0), desc:String(j.description || ''), result:j.result }
+  } catch(e) { return { ok:false, code:-1, desc:String(e && e.message || e) } }
+}
+
+// Сообщение в один чат: HTML, а если Telegram не разобрал разметку — тем же текстом без неё
+function tgSendTo_(token, chat, text) {
+  var r = tgCall_(token, 'sendMessage', { chat_id:String(chat), text:text, parse_mode:'HTML', disable_web_page_preview:true })
+  if (!r.ok && /parse entities|can't parse/i.test(r.desc)) {
+    r = tgCall_(token, 'sendMessage', { chat_id:String(chat), text:text.replace(/<[^>]+>/g, '').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&'), disable_web_page_preview:true })
+  }
+  return r
+}
+
+// 🔔 Уведомление владельцу (брони, отмены, репорты).
+// Шлёт бот броней (BOT_TOKEN). Если он не может (неверный токен, владелец не нажал Start, заблокирован) —
+// то же сообщение уходит от клиентского бота, через которого владелец и так открывает приложение.
+// Итог последней отправки виден в панели владельца → «Уведомления».
+function sendTg(text) {
+  if (!text) return { ok:false, error:'empty' }
+  var bots = [['booking', BOT_TOKEN], ['user', USER_BOT_TOKEN]].filter(function(b){ return b[1] })
+  if (!bots.length) { tgLog_({ ok:false, err:'no_token' }); return { ok:false, error:'no_token' } }
+  var sent = 0, via = '', errs = []
+  ADMIN_CHATS.forEach(function(chat) {
+    for (var i = 0; i < bots.length; i++) {
+      var r = tgSendTo_(bots[i][1], chat, text)
+      if (r.ok) { sent++; via = via || bots[i][0]; return }
+      errs.push(bots[i][0] + ' → ' + chat + ': ' + r.code + ' ' + r.desc)
+    }
+  })
+  var ok = sent > 0
+  tgLog_({ ok:ok, via:via, err:errs.join(' | ').substring(0, 400), fallback:ok && via !== 'booking' })
+  return { ok:ok, via:via, error: ok ? '' : errs.join(' | ') }
+}
+function tgLog_(o) {
+  o.at = new Date().toISOString()
+  try { CacheService.getScriptCache().put('tg_last', JSON.stringify(o), 21600) } catch(e) {}
+  // Последнюю ошибку храним дольше кэша — чтобы владелец увидел её и через день
+  try { if (!o.ok || o.fallback) PROPS.setProperty('TG_LAST_ERR', JSON.stringify(o)); else if (PROPS.getProperty('TG_LAST_ERR')) PROPS.deleteProperty('TG_LAST_ERR') } catch(e) {}
+}
+function tgStatus_() {
+  var last = null, err = null
+  try { last = JSON.parse(CacheService.getScriptCache().get('tg_last') || 'null') } catch(e) {}
+  try { err = JSON.parse(PROPS.getProperty('TG_LAST_ERR') || 'null') } catch(e) {}
+  return { last:last, lastErr:err, chats:ADMIN_CHATS.length }
+}
+
+// 🧪 Проверка уведомлений из панели владельца: каждый бот отдельно, с точной причиной отказа
+function adminTestTg() {
+  var out = {}
+  ;[['booking', BOT_TOKEN], ['user', USER_BOT_TOKEN]].forEach(function(b) {
+    if (!b[1]) { out[b[0]] = { ok:false, code:0, desc:'no_token' }; return }
+    var me = tgCall_(b[1], 'getMe', {})
+    var res = { bot: me.ok ? '@' + me.result.username : '', ok:false, code:me.code, desc:me.desc }
+    if (me.ok) {
+      var r = tgSendTo_(b[1], ADMIN_CHATS[0], '🧪 <b>Проверка уведомлений</b>\nБот ' + tgEsc_(res.bot) + ' может писать тебе. Брони будут приходить сюда.\n#тест')
+      res.ok = r.ok; res.code = r.code; res.desc = r.desc
+    }
+    out[b[0]] = res
+  })
+  tgLog_({ ok: out.booking.ok || out.user.ok, via: out.booking.ok ? 'booking' : out.user.ok ? 'user' : '', err: out.booking.ok ? '' : 'booking: ' + out.booking.code + ' ' + out.booking.desc, fallback: !out.booking.ok && out.user.ok, test:true })
+  return { ok:true, chat:ADMIN_CHATS[0], bots:out }
 }
 
 function testTelegram() {
-  if (!BOT_TOKEN) { Logger.log('❌ Нет BOT_TOKEN в свойствах скрипта'); return }
-  const r = sendTg('✅ <b>ToxicSkill v' + BACKEND_V + '</b>\n\n🔒 Токены в свойствах скрипта\n⭐ Баллы серверные\n🖥 Gizmo: время до конца сессии')
-  Logger.log(r.ok ? '✅ OK!' : '❌ Fail')
+  if (!BOT_TOKEN && !USER_BOT_TOKEN) { Logger.log('❌ Нет BOT_TOKEN в свойствах скрипта'); return }
+  var t = adminTestTg().bots
+  Logger.log('Бот броней: ' + (t.booking.ok ? '✅ ' + t.booking.bot : '❌ ' + t.booking.code + ' ' + t.booking.desc))
+  Logger.log('Клиентский бот: ' + (t.user.ok ? '✅ ' + t.user.bot : '❌ ' + t.user.code + ' ' + t.user.desc))
 }
 
 // ═══════════════════════════════════════════════
@@ -565,8 +668,8 @@ function redeemReward(rewardId, tgId, user, phone) {
   // ── TG: кто, что, где, когда ──
   sendTg(
     '🎁 <b>НАГРАДА АКТИВИРОВАНА!</b>\n\n'+
-    '👤 <b>'+(user||'Гость')+'</b>\n'+
-    '📱 '+(phone||'—')+'\n'+
+    '👤 <b>'+tgEsc_(user||'Гость')+'</b>\n'+
+    '📱 '+tgEsc_(phone||'—')+'\n'+
     '🆔 TG: '+tgId+'\n\n'+
     '🏆 <b>'+rw.label+'</b>\n'+
     '⏱ '+rw.hours+' часов · Зона: '+rw.zone+'\n'+
@@ -682,9 +785,9 @@ function validatePromo(code, userName, userPhone, tgId) {
     // TG админу
     sendTg(
       '🎟 <b>Промокод!</b>\n' +
-      '👤 ' + (userName||'Гость') + (userPhone ? ' · '+userPhone : '') + '\n' +
+      '👤 ' + tgEsc_(userName||'Гость') + (userPhone ? ' · '+tgEsc_(userPhone) : '') + '\n' +
       '🆔 TG: ' + (tgId||'—') + '\n' +
-      '🏷 <code>' + code + '</code> · ' + name + '\n' +
+      '🏷 <code>' + tgEsc_(code) + '</code> · ' + tgEsc_(name) + '\n' +
       (bonus ? '⏱ +'+bonus+'ч ' : '') + (disc ? '💸 -'+disc+'%' : '') + '\n' +
       '📊 ' + (used+1) + '/' + uses + '\n#промокод'
     )
@@ -739,10 +842,10 @@ function submitReview(tgId, user, rating, text) {
   // TG админу
   sendTg(
     '📝 <b>Новый отзыв!</b>\n\n' +
-    '👤 <b>' + (user||'Гость') + '</b>\n' +
+    '👤 <b>' + tgEsc_(user||'Гость') + '</b>\n' +
     '🆔 TG: ' + (tgId||'—') + '\n\n' +
     stars + ' <b>' + rating + '/5</b>\n\n' +
-    (text ? '💬 <i>' + text + '</i>\n\n' : '') +
+    (text ? '💬 <i>' + tgEsc_(text) + '</i>\n\n' : '') +
     '#отзыв'
   )
 
@@ -893,7 +996,8 @@ function getBookingsPublic(date, zone) {
     }
     if (date) list = list.filter(function(b) { return b.date === date })
     if (zone) list = list.filter(function(b) { return b.zone === zone })
-    return { ok: true, bookings: list }
+    // now — время сервера: приложение сверяет по нему часы телефона (иначе «осталось» врёт при сбитых часах)
+    return { ok: true, bookings: list, now: Date.now() }
   } catch(e) { return { ok: false, bookings: [] } }
 }
 // Сбрасываем кэш после любого изменения броней
@@ -1058,7 +1162,8 @@ function createBookingFromParams_(p) {
   if (p.source === 'offline' && !isAdminCall) return { ok:false, error:'Доступ запрещён' }
   var q = {}
   Object.keys(p).forEach(function(k){ q[k] = p[k] })
-  q.tgId = trustedTgId_(p)
+  // Оффлайн-бронь — за клиента из зала: не привязываем её к Telegram админа (баллы, «мои брони», лимиты)
+  q.tgId = p.source === 'offline' ? '' : trustedTgId_(p)
   var list = null
   if (p.pcs) list = String(p.pcs).split(',')
   var plan = planBooking_(q, list)
@@ -1146,26 +1251,34 @@ function createBookings_(plan) {
     if (plan.silent) return res
 
     // ⭐ Баллы — как за одну бронь, даже если ПК несколько (анти-абуз)
-    var pr = plan.tgId ? awardPoints({ tgId:plan.tgId, user:plan.user, phone:plan.phone, zone:plan.zone, start:plan.start, end:plan.end, isTg:plan.isTg }, team || ids[0]) : null
+    // Бронь уже записана: сбой в баллах не должен превращать её в «ошибку» и глушить уведомление
+    var pr = null
+    try { pr = plan.tgId ? awardPoints({ tgId:plan.tgId, user:plan.user, phone:plan.phone, zone:plan.zone, start:plan.start, end:plan.end, isTg:plan.isTg }, team || ids[0]) : null } catch(pe) { pr = null }
     var pl = pr && pr.ok ? '\n⭐ +' + pr.earned + ' (=' + pr.balance + ') · ' + pr.tags : (pr && pr.msg ? '\n⭐ ' + pr.msg : '')
     var pcsTxt = plan.pcs.join(', ') + (plan.pcs.length > 1 ? ' (команда ×' + plan.pcs.length + ')' : '')
     var money = plan.pcs.length > 1 ? total + ' BYN (' + plan.pcs.length + '×' + plan.price + ')' : plan.price + ' BYN'
-    sendTg(
-      (plan.offline ? '📞 <b>Оффлайн-бронь</b>\n' : plan.pcs.length > 1 ? '👥 <b>Бронь для команды!</b>\n' : '📅 <b>Бронь!</b>\n') +
-      '👤 <b>' + plan.user + '</b>' + (plan.phone ? ' · ' + plan.phone : '') + '\n' +
-      '🖥 <b>' + pcsTxt + '</b> · ' + plan.zone + '\n' +
-      '📆 ' + plan.date + ' · ' + plan.start + '–' + plan.end + '\n' +
-      '📦 ' + plan.label + ' · ' + money + '\n' +
-      '🆔 ' + (team || ids[0]) + pl + '\n#бронь'
+    var zoneTxt = { std:'Standard', vip:'VIP', bc:'Bootcamp' }[plan.zone] || plan.zone
+    var startsIn = plan.range[0] - nowAbs
+    var whenTxt = startsIn <= 5 ? ' · <b>уже сейчас</b>' : startsIn < 24 * 60 ? ' · через ' + durRu_(startsIn) : ''
+    var tg = sendTg(
+      (plan.offline ? '📞 <b>Оффлайн-бронь</b>\n' : plan.pcs.length > 1 ? '👥 <b>Бронь для команды!</b>\n' : '📅 <b>Новая бронь!</b>\n') +
+      '👤 <b>' + tgEsc_(plan.user) + '</b>' + (plan.phone ? ' · ' + tgEsc_(plan.phone) : '') + '\n' +
+      '🖥 <b>' + pcsTxt + '</b> · ' + zoneTxt + '\n' +
+      '📆 ' + plan.date + ' · <b>' + plan.start + '–' + plan.end + '</b>' + whenTxt + '\n' +
+      '📦 ' + tgEsc_(plan.label) + ' · ' + money + '\n' +
+      '🆔 ' + (team || ids[0]) + tgEsc_(pl) + '\n#бронь'
     )
+    res.notified = tg.ok
     if (plan.tgId) {
-      sendTgTyped(plan.tgId,
-        '✅ <b>Бронь подтверждена!</b>\n\n' +
-        '🖥 <b>' + pcsTxt + '</b>\n' +
-        '📆 ' + plan.date + ' · ' + plan.start + '–' + plan.end + '\n' +
-        '📦 ' + plan.label + ' · ' + money + '\n\n' +
-        '📍 <b>ToxicSkill</b>\n📞 +375 33 665-66-52\n\n⏰ Приходи вовремя — ждём тебя! 🎮'
-      , 'bookings')
+      try {
+        sendTgTyped(plan.tgId,
+          '✅ <b>Бронь подтверждена!</b>\n\n' +
+          '🖥 <b>' + pcsTxt + '</b>\n' +
+          '📆 ' + plan.date + ' · ' + plan.start + '–' + plan.end + '\n' +
+          '📦 ' + tgEsc_(plan.label) + ' · ' + money + '\n\n' +
+          '📍 <b>ToxicSkill</b>\n📞 +375 33 665-66-52\n\n⏰ Приходи вовремя — ждём тебя! 🎮'
+        , 'bookings')
+      } catch(ue) {}
     }
     res.points = pr && pr.ok ? { earned:pr.earned, balance:pr.balance, tags:pr.tags } : null
     res.pointsMsg = pr ? pr.msg || null : null
@@ -1215,7 +1328,8 @@ function cancelBooking(id, tgId, adminOk, all) {
     var rev = 0
     if (owner && (!team || !teamLeft)) { var rv = revokePoints(team || id, owner); rev = rv.revoked || 0 }
     var r0 = rows[hit], pcs = done.map(function(k){ return String(rows[k][3]) }).join(', ')
-    sendTg('🗑 <b>Отмена</b>\n🆔 ' + (team && all ? team : id) + '\n👤 ' + String(r0[1]) + '\n🖥 ' + pcs + (rev ? '\n⭐ −' + rev + ' баллов' : '') + (isAdminCaller && caller !== owner ? '\n👑 отменил админ' : '') + '\n#отмена')
+    sendTg('🗑 <b>Отмена брони</b>\n👤 ' + tgEsc_(String(r0[1])) + '\n🖥 <b>' + pcs + '</b>\n📆 ' + fmtDate(r0[5]) + ' · ' + fmtTime(r0[6]) + '–' + fmtTime(r0[7]) +
+      '\n🆔 ' + (team && all ? team : id) + (rev ? '\n⭐ −' + rev + ' баллов' : '') + (isAdminCaller && caller !== owner ? '\n👑 отменил админ' : '') + '\n#отмена')
     if (owner) {
       sendTgTyped(owner,
         '🗑 <b>Бронь отменена</b>\n\n🖥 <b>' + pcs + '</b>\n' +
@@ -1228,7 +1342,7 @@ function cancelBooking(id, tgId, adminOk, all) {
 }
 
 // Получить брони для синхронизации в Gizmo (confirmed, не synced)
-function getPendingBookings() {
+function getPendingBookings(withPhones) {
   try {
     var sh = bookSheet()
     var rows = sh.getDataRange().getValues()
@@ -1238,7 +1352,7 @@ function getPendingBookings() {
       var status = String(r[10]).trim()
       if (status !== 'confirmed' && status !== 'gizmo_synced' && status !== 'offline') continue
       pending.push({
-        id: String(r[0]), user: String(r[1]), phone: String(r[2]),
+        id: String(r[0]), user: String(r[1]), phone: withPhones ? String(r[2]) : '',
         pc: String(r[3]), zone: String(r[4]), date: fmtDate(r[5]),
         start: fmtTime(r[6]), end: fmtTime(r[7]),
         pkg: String(r[8]), price: String(r[9]),
@@ -1302,13 +1416,25 @@ function gizmoUntil_(left, until, nowMs) {
 }
 
 function gizmoSave_(hosts) {
-  var now = new Date().toISOString()
-  var values = [['pc','zone','busy','online','user','until','updatedAt']]
-  hosts.forEach(function(h) { values.push([h.pc, h.zone, !!h.busy, h.online !== false, h.user || '', h.until || '', now]) })
+  var nowMs = Date.now(), now = new Date(nowMs).toISOString()
+  // Начало сессии: мост его не присылает, поэтому замечаем сами — когда ПК был свободен, а стал занят.
+  // ПК, занятые уже в первой сводке (или после долгого молчания моста), получают «неизвестно» — без выдумок.
+  var prev = {}, prevFresh = false
+  try {
+    var old = gizmoLoad_()
+    prevFresh = !!old.updatedAt && nowMs - new Date(old.updatedAt).getTime() < GIZMO_STALE_MIN * 2 * 60000
+    old.hosts.forEach(function(h){ prev[h.pc] = h })
+  } catch(e) {}
+  hosts.forEach(function(h) {
+    var p = prev[h.pc]
+    h.since = !h.busy ? '' : (p && p.busy) ? (p.since || '') : (prevFresh && p && !p.busy) ? now : ''
+  })
+  var values = [['pc','zone','busy','online','user','until','updatedAt','since']]
+  hosts.forEach(function(h) { values.push([h.pc, h.zone, !!h.busy, h.online !== false, h.user || '', h.until || '', now, h.since || '']) })
   // Одной записью вместо appendRow на каждый ПК — в разы быстрее
   var sh = gizmoSheet()
   sh.clearContents()
-  sh.getRange(1, 1, values.length, 7).setValues(values)
+  sh.getRange(1, 1, values.length, 8).setValues(values)
   try { CacheService.getScriptCache().put('gizmo_v6', JSON.stringify({ hosts:hosts, updatedAt:now }), 21600) } catch(e) {}
 }
 
@@ -1323,7 +1449,8 @@ function gizmoLoad_() {
       pc:String(r[0]), zone:String(r[1]),
       busy:r[2]===true||String(r[2]).toLowerCase()==='true',
       online:r[3]!==false&&String(r[3]).toLowerCase()!=='false',
-      user:String(r[4]||''), until:(r[5] instanceof Date) ? r[5].toISOString() : String(r[5]||'')
+      user:String(r[4]||''), until:(r[5] instanceof Date) ? r[5].toISOString() : String(r[5]||''),
+      since:(r[7] instanceof Date) ? r[7].toISOString() : String(r[7]||'')
     }
   })
   return { hosts:hosts, updatedAt: rows.length > 1 ? String(rows[1][6]) : '' }
@@ -1391,12 +1518,13 @@ function getGizmoStatus() {
     var hosts = st.hosts.map(function(h) {
       var left = null
       if (h.busy && h.until) { var t = new Date(h.until).getTime(); if (!isNaN(t)) left = Math.max(0, Math.ceil((t - nowMs)/60000)) }
+      // since — когда началась сессия (если заметили), чтобы показать «в игре 40 мин», когда остаток неизвестен
       return { pc:String(h.pc), zone:String(h.zone), busy:!!h.busy, online:h.online !== false,
-        until: left !== null ? h.until : '', left: left }
+        until: left !== null ? h.until : '', left: left, since: h.busy ? String(h.since || '') : '' }
     })
     var ageMin = st.updatedAt ? Math.round((nowMs - new Date(st.updatedAt).getTime())/60000) : 999
     return {
-      ok:true, hosts:hosts, source:'gizmo',
+      ok:true, hosts:hosts, source:'gizmo', now:nowMs,
       updatedAt:st.updatedAt,
       fresh: ageMin < 2, // данные свежие если менее 2 минут
       total:hosts.length,
@@ -1570,7 +1698,7 @@ function verifyAdminEx(p) {
   if (p.adminKey && ADMIN_KEY && String(p.adminKey) === ADMIN_KEY) return { ok:true, why:'key' }
   var v = checkInitData_(p.initData || '')
   if (!v.ok) return { ok:false, why:v.why }
-  if (String(v.user.id) !== String(ADMIN_CHAT_ID)) return { ok:false, why:'not_admin' }
+  if (ADMIN_IDS.indexOf(String(v.user.id)) < 0) return { ok:false, why:'not_admin' }
   return { ok:true, why:'hmac' }
 }
 function verifyAdmin(p) { return verifyAdminEx(p).ok }
@@ -1668,13 +1796,21 @@ function adminFindUser(q) {
 // 🛠 ТЕХНИЧЕСКИЕ РАБОТЫ (Script Properties)
 function getMaintenance() {
   var pr = PropertiesService.getScriptProperties()
-  return { ok:true, on: pr.getProperty('MAINT') === '1', msg: pr.getProperty('MAINT_MSG') || '' }
+  return { ok:true, on: pr.getProperty('MAINT') === '1', msg: pr.getProperty('MAINT_MSG') || '',
+    eta: pr.getProperty('MAINT_ETA') || '', since: pr.getProperty('MAINT_SINCE') || '' }
 }
-function setMaintenance(on, msg) {
+// eta — «вернёмся к HH:MM» по времени клуба (необязательно)
+function setMaintenance(on, msg, eta) {
   var pr = PropertiesService.getScriptProperties()
+  eta = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(eta||'')) ? String(eta) : ''
+  var wasOn = pr.getProperty('MAINT') === '1'
   pr.setProperty('MAINT', on ? '1' : '')
   pr.setProperty('MAINT_MSG', msg || '')
-  return { ok:true, on:!!on, msg:msg||'' }
+  pr.setProperty('MAINT_ETA', on ? eta : '')
+  // С какого момента идут работы — для полоски прогресса до «вернёмся к»
+  if (on && (!wasOn || !pr.getProperty('MAINT_SINCE'))) pr.setProperty('MAINT_SINCE', new Date().toISOString())
+  if (!on) pr.setProperty('MAINT_SINCE', '')
+  return { ok:true, on:!!on, msg:msg||'', eta:on ? eta : '' }
 }
 
 // 💬 Личное сообщение клиенту через бота
@@ -1781,9 +1917,9 @@ function sendBugReport(caption, photoB64) {
     var b64 = raw.indexOf(',') > 0 ? raw.substring(raw.indexOf(',')+1) : raw
     var blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/jpeg', 'bug.jpg')
     var shortCap = text.length > 1000 ? text.substring(0, 990) + '…' : text
-    var r = UrlFetchApp.fetch('https://api.telegram.org/bot'+BOT_TOKEN+'/sendPhoto', {
+    var r = UrlFetchApp.fetch('https://api.telegram.org/bot'+(BOT_TOKEN || USER_BOT_TOKEN)+'/sendPhoto', {
       method: 'post',
-      payload: { chat_id: String(ADMIN_CHAT_ID), caption: shortCap, parse_mode: 'HTML', photo: blob },
+      payload: { chat_id: String(ADMIN_CHATS[0]), caption: shortCap, parse_mode: 'HTML', photo: blob },
       muteHttpExceptions: true
     })
     var res = JSON.parse(r.getContentText())
@@ -1909,7 +2045,7 @@ function sendBirthdayBonuses() {
         'Потрать их на бесплатные часы игры 🎮\n\n' +
         '📍 <b>ToxicSkill</b> · ждём тебя!'
       , 'promos')
-      sendTg('🎂 <b>День рождения у клиента!</b>\n👤 ' + (name||tgId) + '\n🎁 Начислено +' + BDAY_BONUS + ' ⭐')
+      sendTg('🎂 <b>День рождения у клиента!</b>\n👤 ' + tgEsc_(name||tgId) + '\n🎁 Начислено +' + BDAY_BONUS + ' ⭐')
       sh.getRange(i+1, 5).setValue(year)
       sent++
     }

@@ -13,13 +13,17 @@ function renderProfile(){
   const phH=$('ph-handle')
   if(phH&&u._tgHandle){phH.style.cursor='pointer';phH.onclick=()=>window.open('https://t.me/'+u._tgHandle,'_blank')}
   countUp($('st-bk'),(u.bks||[]).filter(b=>b.status==='active').length)
-  countUp($('st-hr'),u.hrs||0)
+  // Часы — по броням (кроме отменённых), а не накопленным счётчиком: отмена раньше не уменьшала их
+  const hrsLive=(u.bks||[]).filter(b=>b.status!=='cancelled').reduce((s,b)=>{let d=timeToMinJS(b.end)-timeToMinJS(b.start);if(d<=0)d+=1440;return s+d/60},0)
+  countUp($('st-hr'),Math.round(hrsLive))
   countUp(document.getElementById('st-pts'),u.pts||0)
   // Обновляем аватарку в топбаре
   const topavIn=document.getElementById('topav-inner')
   if(topavIn){
     if(u._tgPhoto){
-      topavIn.innerHTML=`<img src="${u._tgPhoto}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<span style=\'font-size:18px\'>☠️</span>'">`
+      topavIn.innerHTML=`<img src="${u._tgPhoto}" style="width:100%;height:100%;object-fit:cover" alt="">`
+      // Фото из Telegram не загрузилось — показываем ☠️ (раньше обработчик был с ошибкой в кавычках)
+      topavIn.querySelector('img').onerror=function(){this.parentElement.innerHTML='<span style="font-size:18px">☠️</span>'}
       topavIn.style.background='none'
     } else if(u.reg&&u.name){
       topavIn.innerHTML=`<span style="font-family:var(--F);font-size:16px;font-weight:800;color:var(--lime)">${u.name[0].toUpperCase()}</span>`
@@ -30,7 +34,8 @@ function renderProfile(){
   const phAvIn=document.getElementById('ph-av-inner')
   if(phAvIn){
     if(u._tgPhoto){
-      phAvIn.innerHTML=`<img src="${u._tgPhoto}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.outerHTML='<span style=\'font-size:26px\'>☠️</span>'">`
+      phAvIn.innerHTML=`<img src="${u._tgPhoto}" style="width:100%;height:100%;object-fit:cover;display:block" alt="">`
+      phAvIn.querySelector('img').onerror=function(){this.outerHTML='<span style="font-size:26px">☠️</span>'}
     } else {
       const letter=u.name?.[0]?.toUpperCase()||'☠️'
       phAvIn.innerHTML=`<span style="font-family:var(--F);font-size:26px;font-weight:800;color:var(--lime)">${letter}</span>`
@@ -75,7 +80,7 @@ function renderProfile(){
     const recent=u.bks.slice(0,3)
     bksEl.innerHTML=`<div style="font-family:var(--F);font-size:13px;font-weight:700;color:var(--t2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">Последние брони</div>`+
     recent.map(b=>`<div style="background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:13px 15px;margin-bottom:7px;display:flex;align-items:center;gap:12px">
-      <div style="font-size:22px">${b.zone==='vip'?'👑':b.zone==='bootcamp'?'⚡':'🖥'}</div>
+      <div style="font-size:22px">${b.zone==='vip'?'👑':(b.zone==='bootcamp'||b.zone==='bc')?'⚡':'🖥'}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.pc} · ${b.pkg}</div>
         <div style="font-size:11px;color:var(--t2);margin-top:2px;font-family:var(--m)">${b.date} · ${b.start}–${b.end}</div>
@@ -113,7 +118,7 @@ function renderProfile(){
     if(nextVal)nextVal.textContent=pts<400?`ещё ${rem} ⭐`:'✓'
     // Загружаем актуальный баланс с сервера (тихо)
     if(u._tgId) loadServerPoints()
-  }
+  }else if(bpBlk)bpBlk.style.display='none'
   // Статус в зависимости от баллов и количества бронирований
   const stEl=document.getElementById('ps-status')?.querySelector('.ps-n')
   if(stEl){
@@ -211,6 +216,9 @@ function renderProfile(){
 function openRegModal(){
   openM('reg-m')
   const u=D.user
+  // Телефон набирается сразу в формате +375 XX XXX-XX-XX
+  const ph=document.getElementById('r-phone')
+  if(ph&&!ph._mask){ph._mask=true;ph.addEventListener('input',()=>{ph.value=maskPhone(ph.value)});ph.addEventListener('focus',()=>{if(!ph.value)ph.value='+375 '})}
   const nameEl=document.getElementById('r-name')
   const phoneEl=document.getElementById('r-phone')
   const ageEl=document.getElementById('r-bday')

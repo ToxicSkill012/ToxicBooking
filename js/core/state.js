@@ -3,9 +3,10 @@
 // ═══════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════
+const newUser=()=>({name:'Toxic Player',handle:'',phone:'',age:'',reg:false,bks:[],hrs:0,pts:0,_tgHandle:'',_tgPhoto:'',_tgId:''})
 const D = {
   lang:'ru',theme:'',
-  user:{name:'Toxic Player',handle:'',phone:'',age:'',reg:false,bks:[],hrs:0,pts:0,_tgHandle:'',_tgPhoto:'',_tgId:''},
+  user:newUser(),
   promos:[
     {code:'TOXIC2025',name:'Приветственный бонус',bonus:2,disc:0,uses:100,used:0,on:true},
     {code:'BRЕСТ2026',name:'День города Брест',bonus:3,disc:10,uses:50,used:12,on:true},
@@ -20,5 +21,10 @@ if(D.user.pts===undefined)D.user.pts=0
 if(D.user.hrs===undefined)D.user.hrs=0
 // Промокоды НЕ берём из localStorage — всегда из Google Sheets
 
-const sv=()=>{try{localStorage.setItem('ts4',JSON.stringify({lang:D.lang,theme:D.theme,user:D.user}))}catch(e){}}
+// Резервный ключ владельца храним отдельно от профиля (раньше он не сохранялся вовсе)
+try{D._admKey=localStorage.getItem('ts_admk')||''}catch(e){D._admKey=''}
+const sv=()=>{try{
+  localStorage.setItem('ts4',JSON.stringify({lang:D.lang,theme:D.theme,user:D.user}))
+  if(D._admKey)localStorage.setItem('ts_admk',D._admKey);else localStorage.removeItem('ts_admk')
+}catch(e){}}
 const _=k=>(I18N[D.lang]&&I18N[D.lang][k])||I18N.ru[k]||k

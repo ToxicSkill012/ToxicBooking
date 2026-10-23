@@ -35,19 +35,28 @@ document.addEventListener('click',e=>{
 },{passive:true,capture:true})
 
 // 3) 🔴 ДЕТЕКТОР ЗАВИСАНИЙ — ловим фризы интерфейса
+// Раньше любые две паузы отрисовки (свернул Telegram, открыл выбор времени, системный диалог)
+// навсегда выключали стекло и подсветку. Теперь: паузы системы не считаем, нужно 3 настоящих фриза
+// за полторы минуты, лёгкий режим включается на 3 дня, а в настройках его можно выключить.
 ;(function watchFreeze(){
-  let last=performance.now()
+  let last=performance.now(),quietUntil=0,hits=[]
+  const quiet=()=>{quietUntil=performance.now()+2500}
+  document.addEventListener('visibilitychange',quiet)
+  ;['blur','focus','pageshow','resize','orientationchange'].forEach(ev=>window.addEventListener(ev,quiet))
+  document.addEventListener('pointerdown',e=>{try{if(e.target.closest('input,select,textarea,[contenteditable]'))quiet()}catch(_){}},true)
+  try{const tw=window.Telegram&&Telegram.WebApp;if(tw&&tw.onEvent)['viewportChanged','popupClosed','themeChanged','fullscreenChanged'].forEach(ev=>tw.onEvent(ev,quiet))}catch(_){}
   const tick=()=>{
     const now=performance.now(),gap=now-last
-    // Кадр не рисовался дольше 700мс = интерфейс подвис
+    // Кадр не рисовался дольше 700 мс = интерфейс подвис; дольше 4 с — это пауза системы, а не тормоза
     if(gap>700&&!document.hidden){
       _freezeLog.push(`[${_ts()}] подвис ${(gap/1000).toFixed(1)}с на экране «${D.cur||'?'}»`)
       if(_freezeLog.length>5)_freezeLog.shift()
-      // 🩹 Само-лечение: после 2 фризов гасим декоративные эффекты
-      _freezeHits++
-      if(_freezeHits>=2&&!document.body.classList.contains('lowfx')){
-        document.body.classList.add('lowfx')
-        try{localStorage.setItem('ts_lowfx','1')}catch(e){}
+      if(gap<4000&&now>quietUntil){
+        _freezeHits++
+        hits=hits.filter(t=>now-t<90000);hits.push(now)
+        let forced=null;try{forced=localStorage.getItem('ts_fx')}catch(_){}
+        // 🩹 Само-лечение: гасим тяжёлые эффекты (если владелец телефона сам их не включил)
+        if(hits.length>=3&&forced!=='on'&&!document.body.classList.contains('lowfx'))setLowFx(true,true)
       }
     }
     last=now
@@ -55,6 +64,31 @@ document.addEventListener('click',e=>{
   }
   requestAnimationFrame(tick)
 })()
+// Лёгкий режим: без размытия и анимаций. auto — включил детектор (на 3 дня), иначе — выбор в настройках
+function setLowFx(on,auto){
+  document.body.classList.toggle('lowfx',on)
+  document.documentElement.classList.toggle('pre-lowfx',on)
+  try{
+    if(auto)localStorage.setItem('ts_lowfx_until',String(Date.now()+3*86400000))
+    else{localStorage.setItem('ts_fx',on?'off':'on');localStorage.removeItem('ts_lowfx_until')}
+  }catch(e){}
+  syncFxToggle()
+}
+function syncFxToggle(){
+  const t=document.getElementById('tog-fx');if(!t)return
+  const low=document.documentElement.classList.contains('pre-lowfx')||document.body.classList.contains('lowfx')
+  t.classList.toggle('on',!low)
+  const sub=document.getElementById('fx-sub')
+  let auto=false;try{auto=!localStorage.getItem('ts_fx')&&(+localStorage.getItem('ts_lowfx_until')||0)>Date.now()}catch(e){}
+  if(sub)sub.textContent=auto?'Выключены сами: телефон подтормаживал. Включи, если всё плавно':'Размытие, подсветка и анимации. Выключи, если телефон тормозит'
+}
+function toggleFx(el){
+  const turnOn=!el.classList.contains('on')
+  setLowFx(!turnOn,false)
+  haptic('light')
+  toast(turnOn?'Стекло и эффекты включены':'Лёгкий режим: без размытия и анимаций',turnOn?'✨':'🪶')
+}
+document.addEventListener('DOMContentLoaded',syncFxToggle)
 
 // 4) Сбои и тормоза сети — оборачиваем fetch
 ;(function watchNet(){

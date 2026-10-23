@@ -56,7 +56,7 @@ function go(id){
   try{if(id==='bklist'){renderBkList();syncMyBookings().then(ch=>{if(ch&&D.cur==='bklist')renderBkList()}).catch(()=>{})}}catch(e){/*silenced*/}
   try{if(id==='profile')renderProfile()}catch(e){/*silenced*/}
   try{if(id==='home')updateFreeCounter()}catch(e){}
-  try{if(id==='settings')renderPromoList()}catch(e){}
+  try{if(id==='settings'){renderPromoList();loadNotifPrefs()}}catch(e){}
 }
 
 // ═══════════════════════════════════════════════

@@ -8,20 +8,20 @@ function renderBkList(){
   const bks=D.user.bks,act=bks.filter(b=>b.status==='active')
   const sub=document.getElementById('bkl-sub')
   const title=document.getElementById('bkl-title')
-  if(title)title.innerHTML=D.lang==='en'?'MY<br>BOOKINGS':'МОИ<br>БРОНИ'
+  if(title)title.textContent=_('myBk')
   const pl=(n,a,b,c)=>{const m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<12||h>14)?b:c}
-  if(sub)sub.textContent=D.lang==='en'?`${act.length} active · ${bks.length} total`:`${act.length} ${pl(act.length,'активная','активные','активных')} · ${bks.length} всего`
+  if(sub)sub.textContent=D.lang!=='ru'?`${act.length} active · ${bks.length} total`:`${act.length} ${pl(act.length,'активная','активные','активных')} · ${bks.length} всего`
   const body=document.getElementById('bkl-body');if(!body)return
   if(!bks.length){
     body.innerHTML=`
     <div style="padding:50px 20px 20px;text-align:center">
       <div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px rgba(196,255,62,.2))">🎮</div>
-      <div style="font-family:var(--F);font-size:22px;font-weight:800;letter-spacing:-.7px;color:var(--lime);margin-bottom:6px">Броней пока нет</div>
-      <div style="font-size:13px;color:var(--t2);margin-bottom:28px;line-height:1.6">Выбери зону на главной и забронируй<br>любимый ПК прямо сейчас!</div>
-      <button class="BTN" onclick="go('home')" style="max-width:220px;margin:0 auto">🎮 Выбрать зону</button>
+      <div style="font-family:var(--F);font-size:22px;font-weight:800;letter-spacing:-.7px;color:var(--lime);margin-bottom:6px">${T('Броней пока нет','No bookings yet')}</div>
+      <div style="font-size:13px;color:var(--t2);margin-bottom:28px;line-height:1.6">${T('Выбери зону на главной и забронируй<br>любимый ПК прямо сейчас!','Pick a zone on the home screen<br>and book your favourite PC!')}</div>
+      <button class="BTN" onclick="go('home')" style="max-width:220px;margin:0 auto">🎮 ${T('Выбрать зону','Pick a zone')}</button>
       <div class="glass" style="margin-top:20px;padding:14px 16px;border-radius:14px;text-align:left">
-        <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">⭐ Первая бронь = первые баллы!</div>
-        <div style="font-size:11px;color:var(--t2);line-height:1.6">За каждую бронь ты получаешь ⭐ баллы.<br>Копи и получай часы бесплатно!</div>
+        <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">⭐ ${T('Первая бронь = первые баллы!','First booking = first points!')}</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.6">${T('За каждую бронь ты получаешь ⭐ баллы.<br>Копи и получай часы бесплатно!','Every booking earns ⭐ points.<br>Collect them for free hours!')}</div>
       </div>
     </div>`;return
   }
@@ -38,7 +38,7 @@ function renderBkList(){
 // Подпись статуса и таймер для карточки
 function bkTiming(b){
   const r=bookingAbsRange(b.date,b.start,b.end),now=clubNow().abs
-  const en=D.lang==='en'
+  const en=D.lang!=='ru'
   if(!r)return {txt:'',pct:0,live:false}
   if(now<r[0])return {txt:(en?'starts in ':'до начала ')+fmtDur(r[0]-now),pct:0,live:false,soon:r[0]-now<=60}
   if(now<r[1])return {txt:(en?'live · ':'идёт · осталось ')+fmtDur(r[1]-now),pct:Math.round((now-r[0])/(r[1]-r[0])*100),live:true}
@@ -48,7 +48,7 @@ function bkTiming(b){
 function bkCard(b,past=false){
   const z=ZONES[b.zone==='bootcamp'?'bc':b.zone]||{stripe:'var(--t3)',color:'var(--t2)',emoji:'',name:b.zone,badge:'Bx'}
   const t=past?null:bkTiming(b)
-  const stLbl=past?(b.status==='completed'?(D.lang==='en'?'done':'завершена'):_('cancelled')):(t.live?(D.lang==='en'?'● LIVE':'● ИДЁТ'):_('active'))
+  const stLbl=past?(b.status==='completed'?(D.lang!=='ru'?'done':'завершена'):_('cancelled')):(t.live?(D.lang!=='ru'?'● LIVE':'● ИДЁТ'):_('active'))
   const pcs=b.pcs&&b.pcs.length?b.pcs:String(b.pc||'').split(/,\s*/)
   const team=pcs.length>1
   return `<div class="BKI fu${past?' past':''}${t&&t.live?' live':''}" data-bk="${b.id}" style="${past?'':'border-color:'+zA(z,.2)}">
@@ -59,7 +59,7 @@ function bkCard(b,past=false){
       <div class="bki-z">${z.emoji} ${z.name} · ${b.pkg||''} · <b style="color:${past?'var(--t2)':z.color}">${b.price} BYN</b></div>
       <div class="bki-m"><span>📅 ${b.date}</span><span>🕐 ${b.start}–${b.end}</span><span>⏱ ${fmtDur(Math.round((b.h||1)*60))}</span></div>
       ${past?'':`<div class="bki-timer${t.soon?' soon':''}"><span class="bki-tt">${t.txt}</span><div class="bki-bar"><i style="width:${t.pct}%;background:${z.color}"></i></div></div>`}
-      ${!past&&!t.live?`<button class="BTN danger" style="margin-top:13px;width:auto;padding:9px 18px;font-size:13px" onclick="cancelBk('${b.id}')">${team?(D.lang==='en'?'Cancel all PCs':'Отменить всю бронь'):_('cancelBk')}</button>`:''}
+      ${!past&&!t.live?`<button class="BTN danger" style="margin-top:13px;width:auto;padding:9px 18px;font-size:13px" onclick="cancelBk('${b.id}')">${team?(D.lang!=='ru'?'Cancel all PCs':'Отменить всю бронь'):_('cancelBk')}</button>`:''}
     </div>
   </div>`
 }
@@ -79,17 +79,17 @@ function tickBkList(){
 }
 
 function cancelBk(id){
-  const bk=D.user.bks.find(b=>String(b.id)===String(id));if(!bk){toast('Бронь не найдена','⚠️');return}
+  const bk=D.user.bks.find(b=>String(b.id)===String(id));if(!bk){toast(T('Бронь не найдена','Booking not found'),'⚠️');return}
   const modal=document.createElement('div')
   modal.className='MBG open';modal.style.zIndex='300'
   modal.innerHTML=`<div class="MOD" style="transform:none">
     <div class="MH"></div>
     <div style="text-align:center;font-size:36px;margin-bottom:10px">🗑</div>
-    <div class="MT" style="text-align:center">Отменить бронь?</div>
-    <p style="font-size:13px;color:var(--t2);text-align:center;margin:10px 0 18px;line-height:1.6"><b>${bk.pc}</b> · ${bk.date}<br>${bk.start}–${bk.end} · ${bk.price} BYN${bk.grp?'<br>👥 '+(D.lang==='en'?'all PCs of the team booking':'отменятся все ПК команды'):''}</p>
+    <div class="MT" style="text-align:center">${T('Отменить бронь?','Cancel the booking?')}</div>
+    <p style="font-size:13px;color:var(--t2);text-align:center;margin:10px 0 18px;line-height:1.6"><b>${bk.pc}</b> · ${bk.date}<br>${bk.start}–${bk.end} · ${bk.price} BYN${bk.grp?'<br>👥 '+(D.lang!=='ru'?'all PCs of the team booking':'отменятся все ПК команды'):''}</p>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="BTN danger" id="cc-yes">Да, отменить</button>
-      <button class="BTN ghost" id="cc-no">Назад</button>
+      <button class="BTN danger" id="cc-yes">${T('Да, отменить','Yes, cancel')}</button>
+      <button class="BTN ghost" id="cc-no">${T('Назад','Back')}</button>
     </div>
   </div>`
   document.getElementById('app').appendChild(modal)
@@ -99,7 +99,7 @@ function cancelBk(id){
     modal.remove()
     const prev=bk.status
     D.user.bks=D.user.bks.map(b=>b.id==id?{...b,status:'cancelled'}:b)
-    sv();renderBkList();toast('Бронь отменена','🗑')
+    sv();renderBkList();toast(T('Бронь отменена','Booking cancelled'),'🗑')
     if(String(bk.id).startsWith('BK')){
       try{
         const r=await fetch(API_URL+'?'+new URLSearchParams({action:'cancelBooking',id:bk.id,all:bk.grp?'1':'0',tgId:D.user._tgId||'',_t:Date.now()}),{cache:'no-store'})
@@ -108,18 +108,18 @@ function cancelBk(id){
           _bookingsCache.loaded=false;_bkData.ts=0
           if(d.revoked>0){
             D.user.pts=Math.max(0,(D.user.pts||0)-d.revoked);sv()
-            toast(`−${d.revoked} баллов (отмена)`,'⭐')
+            toast(T(`−${d.revoked} баллов (отмена)`,`−${d.revoked} points (cancelled)`),'⭐')
           }
         }else if(!/уже отменена/i.test(String(d.error||''))){
           // Сервер не отменил — возвращаем как было, чтобы не ввести в заблуждение
           D.user.bks=D.user.bks.map(b=>b.id==id?{...b,status:prev}:b)
           sv();renderBkList()
-          toast(d.error||'Не удалось отменить','⚠️')
+          toast(d.error||T('Не удалось отменить','Could not cancel'),'⚠️')
         }
       }catch(e){
         D.user.bks=D.user.bks.map(b=>b.id==id?{...b,status:prev}:b)
         sv();renderBkList()
-        toast('Нет связи — бронь не отменена','⚠️')
+        toast(T('Нет связи — бронь не отменена','No connection — not cancelled'),'⚠️')
       }
     }
   }
