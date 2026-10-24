@@ -1,6 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║     TOXICSKILL — Google Apps Script Backend v7.5             ║
 // ║                                                              ║
+// ║  v7.6: старый мост нумерует ПК по порядку — его ST-12/ST-13  ║
+// ║        переводим в ST-13/ST-15 (как в Gizmo: TOXIC13, 15)    ║
 // ║  v7.5: ST-15 (в Standard 14 ПК: 01–13 и 15); брони без      ║
 // ║        аккаунта Telegram                                     ║
 // ║        видны клиенту и на другом телефоне (по его номеру);   ║
@@ -63,7 +65,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.5'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.6'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -1651,6 +1653,17 @@ function gizmoSince_(played, nowMs) {
   return new Date(nowMs - Math.round(m) * 60000).toISOString()
 }
 
+// Старый мост из консоли знает 13 ПК Standard и раздаёт им номера ST-01…ST-13 по порядку в Gizmo.
+// В Gizmo после TOXIC11 идут TOXIC13 и TOXIC15 (TOXIC12 мост не присылает), поэтому его «ST-12» —
+// это ST-13, а «ST-13» — ST-15. Мост, который сам знает ST-15, присылает верные номера — его не трогаем.
+const LEGACY_STD_REMAP = { 'ST-12':'ST-13', 'ST-13':'ST-15' }
+function remapLegacyBridge_(hosts) {
+  var labels = hosts.map(function(h) { return h.pc })
+  if (labels.indexOf('ST-15') >= 0 || labels.indexOf('ST-13') < 0) return hosts
+  hosts.forEach(function(h) { if (LEGACY_STD_REMAP[h.pc]) { h.pc = LEGACY_STD_REMAP[h.pc]; h.zone = detectZone_(h.pc) } })
+  return hosts
+}
+
 // Принять компактный статус от Gizmo Bridge (GET)
 // Формат: hosts=ST-01:0,ST-02:1:45,VIP-01:1:120:30   (ПК:занят[:минут осталось[:минут уже играет]])
 // Остаток можно не знать, а начало — знать: ST-03:1::25
@@ -1665,7 +1678,7 @@ function gizmoSyncCompact(hostsStr, total, busy, free) {
       hosts.push({ pc:pc, zone:detectZone_(pc), busy:isBusy, online:true, user:'',
         until: isBusy ? gizmoUntil_(parts[2], '', nowMs) : '', sinceIso: isBusy ? gizmoSince_(parts[3], nowMs) : '' })
     })
-    gizmoSave_(hosts)
+    gizmoSave_(remapLegacyBridge_(hosts))
     return { ok:true, count:hosts.length }
   } catch(e) { return { ok:false, error:e.toString() } }
 }
