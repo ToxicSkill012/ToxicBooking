@@ -271,7 +271,7 @@ async function renderAdminHall(reload=true){
     if(s){
       playing++
       if(s.end!==null){st=`🎮 ещё <b>${fmtDur(s.end-now)}</b> · до ${fmtAbs(s.end)} <i class="ah-src">${srcTxt[s.src]||'Gizmo'}</i>`;cls='busy'}
-      else{unknown++;st=`🎮 ${s.sinceMin!=null?playingLabel(s.sinceMin):'играют'} · <span class="ah-warn">⏱ укажи, сколько осталось</span>`;cls='unk'}
+      else{unknown++;st=`🎮 ${s.sinceMin!=null?playingLabel(s.sinceMin):'играют'} · <span class="ah-warn">конец неизвестен</span>`;cls='unk'}
     }else if(cur){st=`📅 по брони до ${fmtAbs(cur.r[1])}`;cls='busy'}
     else{st='свободен';cls='free'}
     // Конфликт: сессия не закончится к следующей брони (или конец неизвестен, а бронь меньше чем через час)
@@ -293,9 +293,9 @@ async function renderAdminHall(reload=true){
     </div>`
   }
   const zones=Object.keys(ZONES).map(k=>`<div class="ah-z">${ZONES[k].emoji} ${k==='bc'?'Bootcamp':k==='vip'?'VIP':'Standard'}</div>${zonePcs(k).sort().map(rowOf).join('')}`).join('')
-  const head=`<div class="ah-h"><span>Играют на <b>${playing}</b> из ${TOTAL_PCS} ПК${unknown?` · без времени: <b class="ah-warn">${unknown}</b>`:''}${clashes?` · <b class="ah-warn">⚠️ ${clashes}</b> не успеют к брони`:''}</span>
+  const head=`<div class="ah-h"><span>Играют на <b>${playing}</b> из ${TOTAL_PCS} ПК${unknown?` · у <b class="ah-warn">${unknown}</b> конец неизвестен`:''}${clashes?` · <b class="ah-warn">⚠️ ${clashes}</b> не успеют к брони`:''}</span>
     <button type="button" class="tp-chip" onclick="renderAdminHall()">🔄</button></div>
-    ${unknown?'<div class="ah-tip">Клуб не прислал, сколько осталось у этих гостей: мост Gizmo не передаёт время. Нажми ⏱ и укажи — клиенты сразу увидят «до 17:45 · ещё 40 мин». Чтобы время приходило само, установи новый мост (команда в README).</div>':''}`
+    ${unknown?'<div class="ah-tip">Мост не знает, сколько осталось у этих гостей. Нажми ⏱ и укажи время — клиенты увидят, с какого времени ПК свободен.</div>':''}`
   box.innerHTML=`<div class="ah">${head}${zones}</div>`
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}

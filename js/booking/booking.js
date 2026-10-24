@@ -73,7 +73,7 @@ const freePcsFor=(map,s,e)=>Object.keys(map).filter(l=>!pcBlocker(map[l],s,e))
 const stale=(w,step)=>D.cur!=='book'||D.bk.step!==step||!w.isConnected
 
 // Плитка ПК для отрезка [s,e): занят ли, почему, во сколько уйдёт игрок и с какого времени
-// ПК свободен на всю длительность (freeAt — абс. минуты; null — не в ближайшие сутки)
+// ПК свободен на всю длительность (freeAt — абс. минуты; null — неизвестно или не в ближайшие сутки)
 function pcSlot(lbl,map,bookings,s,e){
   const ranges=map[lbl]||[],nowAbs=clubNow().abs,blk=pcBlocker(ranges,s,e),sess=pcSession(lbl,bookings)
   const o={busy:!!blk,sub:'',note:'',now:'',freeAt:null,live:false,unknown:false,until:null,frac:null}
@@ -82,11 +82,10 @@ function pcSlot(lbl,map,bookings,s,e){
   if(blk){
     o.live=!!sess&&blk[0]<=nowAbs
     o.unknown=o.live&&sess.end===null
-    o.freeAt=firstFree(ranges,Math.max(s,nowAbs),e-s)
+    if(!o.unknown)o.freeAt=firstFree(ranges,Math.max(s,nowAbs),e-s)
     if(o.unknown){
-      // Клуб не прислал время окончания: показываем, сколько уже играют, и с какого времени можно бронировать
-      o.sub='🎮 '+(sess.sinceMin!=null?playingLabel(sess.sinceMin):T('занят сейчас','in use now'))
-      if(o.freeAt!=null)o.note=T('бронь с ','book from ')+fmtAbs(o.freeAt)
+      o.sub='🎮 '+(sess.sinceMin!=null?playingLabel(sess.sinceMin):T('занят сейчас','busy now'))
+      o.note=T('конец неизвестен','end unknown')
     }else if(o.live&&sess.src!=='booking'){
       // Время окончания сессии известно — видно, во сколько уйдёт игрок и сколько ему осталось
       o.until=sess.end
@@ -377,8 +376,9 @@ function liveNote(pcs,bookings,N,map,dur){
   const now=clubNow().abs
   const ss=pcs.map(l=>[l,pcSession(l,bookings)]).filter(x=>x[1])
   if(!ss.length)return ''
-  const first=ss.map(([l])=>[l,firstFree(map[l],now,dur)]).filter(x=>x[1]!=null).sort((a,b)=>a[1]-b[1])[0]
-  return `<div class="tp-live">🎮 ${T(`Сейчас играют на ${ss.length} из ${N} ПК`,`In use now: ${ss.length} of ${N} PCs`)}${first?T(` · раньше всех освободится ${first[0]} — с <b>${minToHM(first[1])}</b>`,` · ${first[0]} frees first — from <b>${minToHM(first[1])}</b>`):''}</div>`
+  const unk=ss.filter(x=>x[1].end===null).length
+  const first=ss.filter(x=>x[1].end!==null).map(([l])=>[l,firstFree(map[l],now,dur)]).filter(x=>x[1]!=null).sort((a,b)=>a[1]-b[1])[0]
+  return `<div class="tp-live">🎮 ${T(`Сейчас играют на ${ss.length} из ${N} ПК`,`In use now: ${ss.length} of ${N} PCs`)}${first?T(` · раньше всех освободится ${first[0]} — с <b>${minToHM(first[1])}</b>`,` · ${first[0]} frees first — from <b>${minToHM(first[1])}</b>`):''}${unk?T(` · у ${unk} конец неизвестен`,` · ${unk} with unknown end`):''}</div>`
 }
 
 // ═══ ШАГ 3. ПК: свободные на выбранное время, для команды — несколько рядом ═══
@@ -431,11 +431,12 @@ async function sPCs(w,z){
   function showOffer(lbl,o,why){
     const box=w.querySelector('#pc-offer');if(!box)return
     const nowAbs=clubNow().abs
-    const head=o.unknown?T(`<b>${lbl}</b>: сейчас за ним играют`,`<b>${lbl}</b>: in use now`)
-      :why||(o.live&&o.until!=null
+    const head=why||(o.live&&o.until!=null
       ?T(`<b>${lbl}</b>: играют до ${fmtAbs(o.until)} — ещё ${fmtDur(o.until-nowAbs)}`,`<b>${lbl}</b>: in use till ${fmtAbs(o.until)} — ${fmtDur(o.until-nowAbs)} more`)
       :`<b>${lbl}</b>: ${o.sub.replace(/^🎮 /,'')}`)
-    if(!canShift(o.freeAt)){
+    if(o.unknown){
+      box.innerHTML=`<div class="pc-offer"><span>🎮 <b>${lbl}</b>: ${T('сейчас за ним играют, а сколько осталось — неизвестно. Выбери другой ПК или время на час позже.','someone is playing and the time left is unknown. Pick another PC or an hour later.')}</span></div>`
+    }else if(!canShift(o.freeAt)){
       box.innerHTML=`<div class="pc-offer"><span>🔒 ${head}${locked?T(' · у пакета время фиксированное — выбери другой ПК',' · the package time is fixed — pick another PC'):''}</span></div>`
     }else{
       box.innerHTML=`<div class="pc-offer"><span>⏳ ${head}.<br>${T('Свободен на всё твоё время с','Free for your whole time from')} <b>${fmtAbs(o.freeAt)}</b></span>
@@ -493,7 +494,7 @@ async function sPCs(w,z){
     const o={...slots[offer.pc],busy:true}
     if(offer.free!=null)o.freeAt=offer.free
     if(offer.unknown)o.unknown=true
-    showOffer(offer.pc,o,offer.msg&&!o.unknown?offer.msg.replace(/ · свободен с \d\d:\d\d$/,''):'')
+    showOffer(offer.pc,o,offer.msg?offer.msg.replace(/ · свободен с \d\d:\d\d$/,''):'')
   }
 }
 // Подобрать N свободных ПК рядом: сначала подряд в одном ряду (с избранными — выше), иначе ближайшие по порядку
@@ -592,8 +593,6 @@ function sConfirm(w,z){
         bk.offer={pc,free:res.free&&res.free[pc]!=null?+res.free[pc]:null,msg:res.why&&res.why[pc]||'',unknown:!!(res.unknown&&res.unknown.includes(pc))}
         bk.pcs=bk.pcs.filter(l=>!res.busy.includes(l));_bkData.ts=0;setTimeout(()=>{bk.step=2;renderStep()},900)
       }
-      // Сервер отказал из-за игрока без известного времени окончания — без слова «неизвестно»
-      if(res.unknown&&res.unknown.length&&res.busy&&res.busy.length===1)return fail(T(`${res.busy[0]} сейчас занят — выбери время позже`,`${res.busy[0]} is in use — pick a later time`))
       return fail(res.error||T('Не удалось забронировать','Booking failed'))
     }
     const paid=res.total!=null?res.total:total
