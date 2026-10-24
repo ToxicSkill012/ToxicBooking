@@ -86,8 +86,9 @@ function adminBridgeCard(d){
         ?`<div class="br-t sm">⏱ Остаток времени известен у ${g.withLeft} из ${g.busy} занятых ПК — клиенты видят «занят до 19:45».</div>`
         :`<div class="br-warn">⏱ Мост не присылает, <b>сколько осталось</b> у сессии — только «занят/свободен». Клиенты видят «занят · в игре 40 мин», а время окончания — только по броням.
           Тогда ПК без брони считается занятым ещё час от «сейчас», и клиенты не видят, когда он освободится.
-          Как исправить: запусти мост из папки <code>bridge</code> — он берёт остаток прямо из Gizmo, или старый мост должен слать минуты (<code>ST-01:1:45</code>).
-          А пока можно указывать время вручную: «Зал сейчас» ниже → ⏱.</div>`
+          Как исправить: на ПК с Gizmo открой PowerShell и вставь команду ниже — она поставит новый мост, который берёт точное время из Gizmo.
+          А пока можно указывать время вручную: «Зал сейчас» ниже → ⏱.</div>
+          <div class="br-url"><code id="br-inst">${BRIDGE_INSTALL}</code><button type="button" class="tp-chip" onclick="copyText('br-inst')">📋 Копировать</button></div>`
     }
     if(legacy)html+=`<div class="br-t sm">Работает старый мост без ключа — это нормально. Чтобы посторонние не могли подменить статусы, добавь ему <code>&key=…</code> (адрес ниже) и свойство <code>BRIDGE_STRICT</code> = <code>1</code>.</div>`
   }else{
@@ -153,11 +154,14 @@ async function adminTestNotif(){
   haptic(d.bots.booking.ok||d.bots.user.ok?'ok':'err')
   setTimeout(adminRunDiag,1500)
 }
-function copyBridgeUrl(){
-  const t=document.getElementById('br-url')?.textContent||''
-  const done=()=>toast('Адрес скопирован','📋')
-  try{navigator.clipboard.writeText(t).then(done,()=>{prompt('Скопируй адрес:',t)})}catch(e){prompt('Скопируй адрес:',t)}
+// Установка нового моста одной командой (PowerShell на ПК с Gizmo)
+const BRIDGE_INSTALL='[Net.ServicePointManager]::SecurityProtocol=3072; irm https://raw.githubusercontent.com/ToxicSkill012/ToxicBooking/main/bridge/install.ps1 | iex'
+function copyText(id){
+  const t=document.getElementById(id)?.textContent||''
+  const done=()=>toast('Скопировано','📋')
+  try{navigator.clipboard.writeText(t).then(done,()=>{prompt('Скопируй:',t)})}catch(e){prompt('Скопируй:',t)}
 }
+function copyBridgeUrl(){copyText('br-url')}
 
 // ── АДМИН: РЕЗЕРВНЫЙ КЛЮЧ ──
 function adminSaveKey(){
@@ -267,7 +271,7 @@ async function renderAdminHall(reload=true){
     if(s){
       playing++
       if(s.end!==null){st=`🎮 ещё <b>${fmtDur(s.end-now)}</b> · до ${fmtAbs(s.end)} <i class="ah-src">${srcTxt[s.src]||'Gizmo'}</i>`;cls='busy'}
-      else{unknown++;st=`🎮 ${s.sinceMin!=null?playingLabel(s.sinceMin):'играют'} · <span class="ah-warn">конец неизвестен</span>`;cls='unk'}
+      else{unknown++;st=`🎮 ${s.sinceMin!=null?playingLabel(s.sinceMin):'играют'} · <span class="ah-warn">⏱ укажи, сколько осталось</span>`;cls='unk'}
     }else if(cur){st=`📅 по брони до ${fmtAbs(cur.r[1])}`;cls='busy'}
     else{st='свободен';cls='free'}
     // Конфликт: сессия не закончится к следующей брони (или конец неизвестен, а бронь меньше чем через час)
@@ -289,9 +293,9 @@ async function renderAdminHall(reload=true){
     </div>`
   }
   const zones=Object.keys(ZONES).map(k=>`<div class="ah-z">${ZONES[k].emoji} ${k==='bc'?'Bootcamp':k==='vip'?'VIP':'Standard'}</div>${zonePcs(k).sort().map(rowOf).join('')}`).join('')
-  const head=`<div class="ah-h"><span>Играют на <b>${playing}</b> из ${TOTAL_PCS} ПК${unknown?` · у <b class="ah-warn">${unknown}</b> конец неизвестен`:''}${clashes?` · <b class="ah-warn">⚠️ ${clashes}</b> не успеют к брони`:''}</span>
+  const head=`<div class="ah-h"><span>Играют на <b>${playing}</b> из ${TOTAL_PCS} ПК${unknown?` · без времени: <b class="ah-warn">${unknown}</b>`:''}${clashes?` · <b class="ah-warn">⚠️ ${clashes}</b> не успеют к брони`:''}</span>
     <button type="button" class="tp-chip" onclick="renderAdminHall()">🔄</button></div>
-    ${unknown?'<div class="ah-tip">Мост не знает, сколько осталось у этих гостей. Нажми ⏱ и укажи время — клиенты увидят, с какого времени ПК свободен.</div>':''}`
+    ${unknown?'<div class="ah-tip">Клуб не прислал, сколько осталось у этих гостей: мост Gizmo не передаёт время. Нажми ⏱ и укажи — клиенты сразу увидят «до 17:45 · ещё 40 мин». Чтобы время приходило само, установи новый мост (команда в README).</div>':''}`
   box.innerHTML=`<div class="ah">${head}${zones}</div>`
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}

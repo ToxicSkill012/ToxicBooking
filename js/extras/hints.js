@@ -120,7 +120,7 @@ function showGuide(){startHints(true)}
 
 // ═══ ЧТО НОВОГО ═══
 const WN_VERSION='v4.3'
-const BUILD_ID='B43'
+const BUILD_ID='B431'
 let _wnShown=false
 function checkWhatsNew(){
   if(_wnShown)return
