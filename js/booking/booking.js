@@ -58,7 +58,7 @@ function tariffLabel(){
 let _bkData={ts:0,bookings:[]}
 async function bkData(force=false){
   if(!force&&Date.now()-_bkData.ts<20000)return _bkData.bookings
-  const [,b]=await Promise.all([gizmoFresh()&&!force?null:loadGizmoStatus(),loadBookings(null,null,force)])
+  const [,b]=await Promise.all([liveKnown()&&!force?null:loadGizmoStatus(),loadBookings(null,null,force)])
   _bkData={ts:Date.now(),bookings:b}
   return b
 }
@@ -71,6 +71,39 @@ function busyMap(zoneKey,bookings){
 const pcBlocker=(ranges,s,e)=>ranges.find(r=>r[0]<e&&s<r[1])
 const freePcsFor=(map,s,e)=>Object.keys(map).filter(l=>!pcBlocker(map[l],s,e))
 const stale=(w,step)=>D.cur!=='book'||D.bk.step!==step||!w.isConnected
+
+// Плитка ПК для отрезка [s,e): занят ли, почему, сколько осталось у игрока и с какого времени
+// ПК свободен на всю длительность (freeAt — абс. минуты; null — неизвестно или не в ближайшие сутки)
+function pcSlot(lbl,map,bookings,s,e){
+  const ranges=map[lbl]||[],nowAbs=clubNow().abs,blk=pcBlocker(ranges,s,e),sess=pcSession(lbl,bookings)
+  const o={busy:!!blk,sub:'',note:'',now:'',freeAt:null,live:false,unknown:false,until:null,frac:null}
+  // Доля оставшегося времени сессии — для полоски (если знаем и начало, и конец)
+  if(sess&&sess.end!==null&&sess.sinceMin!=null&&sess.src!=='booking'){const l=sess.end-nowAbs,t=l+sess.sinceMin;if(t>0)o.frac=Math.max(.04,Math.min(1,l/t))}
+  if(blk){
+    o.live=!!sess&&blk[0]<=nowAbs
+    o.unknown=o.live&&sess.end===null
+    if(!o.unknown)o.freeAt=firstFree(ranges,Math.max(s,nowAbs),e-s)
+    if(o.unknown){
+      o.sub='🎮 '+(sess.sinceMin!=null?playingLabel(sess.sinceMin):T('занят сейчас','busy now'))
+      o.note=T('конец неизвестен','end unknown')
+    }else if(o.live&&sess.src!=='booking'){
+      o.until=sess.end
+      o.sub='🎮 '+T('ещё ','')+fmtDur(sess.end-nowAbs)+(D.lang!=='ru'?' left':'')
+    }else if(blk[0]<=nowAbs){
+      o.until=blk[1]
+      o.sub=T('занят до ','busy till ')+fmtAbs(blk[1])
+    }else{
+      o.sub=T('бронь ','booked ')+minToHM(blk[0])+'–'+minToHM(blk[1])
+    }
+    if(o.freeAt!=null&&!o.note)o.note=T('свободен с ','free from ')+fmtAbs(o.freeAt)
+    return o
+  }
+  const next=ranges.find(r=>r[0]>=e)
+  o.sub=next&&next[0]-e<=180?T('свободен до ','free till ')+minToHM(next[0]):T('свободен','free')
+  // Бронь на потом, а сейчас за ПК играют — видно, что творится в зале
+  if(sess&&s>nowAbs+5)o.now=sess.end===null?T('сейчас играют','in use now'):T('сейчас: ещё ','now: ')+fmtDur(sess.end-nowAbs)+(D.lang!=='ru'?' left':'')
+  return o
+}
 
 // ═══ ШАГ 1. ФОРМАТ: зона, игроки, пакет или своё время ═══
 function sFormat(w,z){
@@ -269,6 +302,7 @@ async function sWhen(w,z){
         <button type="button" class="tp-step" id="tp-p" aria-label="+1 ${T('мин','min')}">+</button>
       </div>
       <div class="avail" id="avail"></div>
+      ${isToday?liveNote(pcs,bookings,N,map,dur):''}
       <div class="tp-legend"><span><i class="lg sel" style="background:${z.color}"></i>${T('твоё время','your time')}</span><span><i class="lg few"></i>${T('мало ПК','few PCs')}</span><span><i class="lg full"></i>${need>1?T(`нет ${need} ПК`,`no ${need} PCs`):T('всё занято','all busy')}</span></div>
       <div class="tp-hint">${T('Листай ленту или нажми на неё · ± — по минуте · нажми на время, чтобы ввести','Swipe or tap the tape · ± by a minute · tap the time to type it')}</div>
     </div>
@@ -336,57 +370,88 @@ async function sWhen(w,z){
   }
 }
 
+// Сейчас в зале: на скольких ПК играют и какой из них раньше всех освободится на всю длительность
+function liveNote(pcs,bookings,N,map,dur){
+  const now=clubNow().abs
+  const ss=pcs.map(l=>[l,pcSession(l,bookings)]).filter(x=>x[1])
+  if(!ss.length)return ''
+  const unk=ss.filter(x=>x[1].end===null).length
+  const first=ss.filter(x=>x[1].end!==null).map(([l])=>[l,firstFree(map[l],now,dur)]).filter(x=>x[1]!=null).sort((a,b)=>a[1]-b[1])[0]
+  return `<div class="tp-live">🎮 ${T(`Сейчас играют на ${ss.length} из ${N} ПК`,`In use now: ${ss.length} of ${N} PCs`)}${first?T(` · раньше всех освободится ${first[0]} — с <b>${minToHM(first[1])}</b>`,` · ${first[0]} frees first — from <b>${minToHM(first[1])}</b>`):''}${unk?T(` · у ${unk} конец неизвестен`,` · ${unk} with unknown end`):''}</div>`
+}
+
 // ═══ ШАГ 3. ПК: свободные на выбранное время, для команды — несколько рядом ═══
+// На каждом ПК видно, сколько осталось у того, кто за ним играет, и с какого времени он свободен.
+// Нажал на занятый — можно сразу «Взять с 19:45»: начало сдвинется на время, когда ПК освободится.
 async function sPCs(w,z){
   const bk=D.bk,en=D.lang!=='ru'
   w.innerHTML=`<div class="TB2 tp-load"><span class="spin"></span></div>`
   const bookings=await bkData()
   if(stale(w,2))return
   const [s,e]=bkInterval(),need=bk.team
-  const map=busyMap(bk.zone,bookings),free=freePcsFor(map,s,e)
+  const map=busyMap(bk.zone,bookings)
+  // Сервер только что отказал (ПК заняли или там играют) — помечаем занятым, даже если наши данные отстали
+  const offer=bk.offer;bk.offer=null
+  if(offer&&map[offer.pc]&&!pcBlocker(map[offer.pc],s,e))map[offer.pc]=mergeRanges(map[offer.pc].concat([[s,offer.free!=null?Math.max(e,offer.free):e]]))
+  const free=freePcsFor(map,s,e)
   bk.pcs=bk.pcs.filter(l=>free.includes(l)).slice(0,need)
   const favs=D.user._favPcs||[]
   const day=dayNumOf(bk.date)
   const dayTxt=day===clubNow().day?T('сегодня','today'):day===clubNow().day+1?T('завтра','tomorrow'):bk.date.slice(0,5)
-  // Остаток сессии неизвестен: «в игре 40 мин», если видели начало, иначе просто «занят сейчас»
-  const playing=lbl=>{const m=gizmoSinceMin(lbl);return m!=null?playingLabel(m):T('занят сейчас','busy now')}
+  const slots={}
+  zonePcs(bk.zone).forEach(l=>{slots[l]=pcSlot(l,map,bookings,s,e)})
+  const locked=!!(bk.pkg&&bk.pkg.locked),lastDay=clubNow().day+RULES.days-1
+  const canShift=t=>t!=null&&!locked&&Math.floor(t/1440)<=lastDay
 
   w.innerHTML=`<div class="pc-head">
       <div><div class="pch-k">${dayTxt} · ${tariffLabel()}</div><div class="pch-v">${minToHM(s)} – ${minToHM(e)}</div>
-        <div class="src${gizmoFresh()?' live':''}">${gizmoFresh()?T('онлайн из клуба','live from the club'):T('по броням','by bookings')}</div></div>
+        <div class="src${gizmoFresh()?' live':''}">${gizmoFresh()?T('онлайн из клуба','live from the club'):liveKnown()&&_gizmoCache.live&&_gizmoCache.live.length?T('по броням и залу','bookings + hall'):T('по броням','by bookings')}</div></div>
       <div class="pch-f"><b style="color:${z.color}">${free.length}</b><span>${T('свободно','free')}</span></div>
     </div>
+    <div id="pc-offer" style="--zc:${z.color}"></div>
+    ${_bookingsCache.err?`<div class="pc-offer info"><span>📡 ${T('Не удалось обновить занятость — проверь интернет. Сервер всё равно проверит бронь.','Could not refresh availability — check the connection. The server re-checks the booking anyway.')}</span></div>`:''}
     ${need>1?`<div class="pick-bar"><span id="pick-n"></span><button type="button" class="tp-chip" id="pick-auto">✨ ${T('Подобрать рядом','Seat us together')}</button></div>`:''}
     <div class="PCG${z.layout.length>1?' PCG-cols':''}" id="pcg">${z.layout.map((col,ci)=>`<div class="pc-col">${z.sides?`<div class="pc-side">${en?(ci?'RIGHT ROW →':'← LEFT ROW'):z.sides[ci]}</div>`:''}${col.map(n=>pcBtn(pcLbl(bk.zone,n),n)).join('')}</div>`).join('')}</div>
-    <div class="pc-legend"><span><i class="hl free"></i>${T('свободен','free')}</span><span><i class="hl sel" style="background:${z.color}"></i>${T('выбран','picked')}</span><span><i class="hl busy"></i>${T('занят в это время','busy at this time')}</span></div>
+    <div class="pc-legend"><span><i class="hl free"></i>${T('свободен','free')}</span><span><i class="hl sel" style="background:${z.color}"></i>${T('выбран','picked')}</span><span><i class="hl busy"></i>${T('занят — нажми, чтобы узнать, когда освободится','busy — tap to see when it frees')}</span></div>
     <div class="pc-tip">${need>1?T('Нажми на ПК, чтобы выбрать или убрать. Долгое нажатие — ❤️ в избранное.','Tap to pick or unpick. Long press — ❤️ favourite.'):T('Нажми на свободный ПК. Долгое нажатие — ❤️ в избранное.','Tap a free PC. Long press — ❤️ favourite.')}</div>
     ${need>1?`<button type="button" class="BTN sticky-go" id="pc-go" style="background:${z.color};color:#000"></button>`:''}
     <details class="eq CRD"><summary>${_('equipment')}</summary>${eqRows(z)}</details>`
   addBack(w)
 
   function pcBtn(lbl,n){
-    const blk=pcBlocker(map[lbl],s,e),sel=bk.pcs.includes(lbl)
-    let sub=''
-    if(blk){
-      const nowAbs=clubNow().abs,live=blk[0]<=nowAbs
-      // Мост не сообщил остаток и брони сейчас нет — конец сессии неизвестен, не выдумываем время
-      const guess=live&&isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      sub=guess?playing(lbl):live?T(`занят до ${fmtAbs(blk[1])}`,`busy till ${fmtAbs(blk[1])}`):T(`бронь ${minToHM(blk[0])}–${minToHM(blk[1])}`,`booked ${minToHM(blk[0])}–${minToHM(blk[1])}`)
-    }else{
-      const next=map[lbl].find(r=>r[0]>=e)
-      sub=next&&next[0]-e<=180?T(`свободен до ${minToHM(next[0])}`,`free till ${minToHM(next[0])}`):T('свободен','free')
-    }
-    // Бронь на потом, а ПК занят прямо сейчас — показываем, чтобы было понятно, что творится в зале
-    let now=''
-    const nowAbs=clubNow().abs
-    if(!blk&&s>nowAbs+5){
-      const cur=map[lbl].find(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      const unknown=isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      if(cur)now=`<div class="pc-now">${unknown?playing(lbl):T('сейчас занят до','busy now till')+' '+minToHM(cur[1])}</div>`
-    }
-    return `<button type="button" class="PCB ${blk?'st-busy':'st-free'}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}" aria-pressed="${sel}">
-      <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${sub}</div>${now}
+    const o=slots[lbl],sel=bk.pcs.includes(lbl)
+    const shift=o.busy&&canShift(o.freeAt)
+    return `<button type="button" class="PCB ${o.busy?'st-busy':'st-free'}${o.live?' live':''}${shift?' can-shift':''}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}" aria-pressed="${sel}">
+      <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${o.sub}</div>${o.note?`<div class="pc-nt">${o.note}</div>`:''}${o.now?`<div class="pc-now">${o.now}</div>`:''}
+      ${o.frac!=null?`<i class="pc-tl" style="--p:${o.frac.toFixed(3)}"></i>`:''}
       ${favs.includes(lbl)?'<div class="pc-fav">❤️</div>':''}<div class="pc-ok">✓</div></button>`
+  }
+  // Подсказка по занятому ПК: кто занимает, когда освободится и кнопка «Взять с …»
+  function showOffer(lbl,o,why){
+    const box=w.querySelector('#pc-offer');if(!box)return
+    const nowAbs=clubNow().abs
+    const head=why||(o.live&&o.until!=null
+      ?T(`<b>${lbl}</b>: играют ещё ${fmtDur(o.until-nowAbs)}`,`<b>${lbl}</b>: in use for ${fmtDur(o.until-nowAbs)} more`)
+      :`<b>${lbl}</b>: ${o.sub.replace(/^🎮 /,'')}`)
+    if(o.unknown){
+      box.innerHTML=`<div class="pc-offer"><span>🎮 <b>${lbl}</b>: ${T('сейчас за ним играют, а сколько осталось — неизвестно. Выбери другой ПК или время на час позже.','someone is playing and the time left is unknown. Pick another PC or an hour later.')}</span></div>`
+    }else if(!canShift(o.freeAt)){
+      box.innerHTML=`<div class="pc-offer"><span>🔒 ${head}${locked?T(' · у пакета время фиксированное — выбери другой ПК',' · the package time is fixed — pick another PC'):''}</span></div>`
+    }else{
+      box.innerHTML=`<div class="pc-offer"><span>⏳ ${head}.<br>${T('Свободен на всё твоё время с','Free for your whole time from')} <b>${fmtAbs(o.freeAt)}</b></span>
+        <button type="button" data-shift="${o.freeAt}">${T('Взять с','From')} ${minToHM(o.freeAt)} →</button></div>`
+      box.querySelector('[data-shift]').onclick=()=>shiftTo(lbl,o.freeAt)
+    }
+    box.firstElementChild.classList.add('pop')
+    haptic('warn')
+  }
+  // Сдвинуть начало на время, когда ПК свободен, и взять его
+  function shiftTo(lbl,t){
+    const d=Math.floor(t/1440)
+    bk.date=dateOfDayNum(d);bk.sm=t;bk.smDay=d
+    if(need===1){bk.pcs=[lbl];bk.step=3}
+    else bk.pcs=[lbl,...bk.pcs.filter(x=>x!==lbl)].slice(0,need)
+    haptic('ok');toast(T(`Начало сдвинуто на ${minToHM(t)}`,`Start moved to ${minToHM(t)}`),'⏳');renderStep()
   }
   const refresh=()=>{
     w.querySelectorAll('.PCB').forEach(b=>{const on=bk.pcs.includes(b.dataset.pc);b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on)})
@@ -404,7 +469,7 @@ async function sPCs(w,z){
     ;['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>{if(lt){clearTimeout(lt);lt=null}}))
     b.onclick=()=>{
       if(b._lp){b._lp=false;return}
-      if(b.classList.contains('st-busy')){toast(`${lbl}: ${b.querySelector('.pc-st').textContent}`,'🔒');haptic('warn');return}
+      if(b.classList.contains('st-busy')){showOffer(lbl,slots[lbl]);return}
       if(need===1){bk.pcs=[lbl];refresh();haptic('light');setTimeout(()=>{if(!stale(w,2)){bk.step=3;renderStep()}},170);return}
       const i=bk.pcs.indexOf(lbl)
       if(i>=0)bk.pcs.splice(i,1)
@@ -423,6 +488,13 @@ async function sPCs(w,z){
     if(!bk.pcs.length){const pick=seatTogether(z,free,need,favs);if(pick)bk.pcs=pick}
   }
   refresh()
+  // Ответ сервера при отказе: что случилось и с какого времени ПК свободен
+  if(offer&&slots[offer.pc]){
+    const o={...slots[offer.pc],busy:true}
+    if(offer.free!=null)o.freeAt=offer.free
+    if(offer.unknown)o.unknown=true
+    showOffer(offer.pc,o,offer.msg?offer.msg.replace(/ · свободен с \d\d:\d\d$/,''):'')
+  }
 }
 // Подобрать N свободных ПК рядом: сначала подряд в одном ряду (с избранными — выше), иначе ближайшие по порядку
 function seatTogether(z,free,need,favs){
@@ -491,9 +563,11 @@ function sConfirm(w,z){
     const fail=msg=>{btn.textContent=n>1?T(`Забронировать ${n} ПК`,`Book ${n} PCs`):_('bookNow');btn.disabled=false;toast(msg,'❌');btn.classList.add('shake');setTimeout(()=>btn.classList.remove('shake'),400);haptic('err')}
     // Свежая проверка прямо перед бронью: вдруг кто-то успел раньше
     try{
-      const fresh=busyMap(bk.zone,await bkData(true))
+      const fb=await bkData(true),fresh=busyMap(bk.zone,fb)
       const taken=bk.pcs.filter(l=>pcBlocker(fresh[l],s,e))
       if(taken.length){
+        const sl=pcSlot(taken[0],fresh,fb,s,e)
+        bk.offer={pc:taken[0],free:sl.freeAt,unknown:sl.unknown}
         bk.pcs=bk.pcs.filter(l=>!taken.includes(l))
         fail(T(`Только что заняли: ${taken.join(', ')} — выбери другой`,`Just taken: ${taken.join(', ')}`))
         setTimeout(()=>{bk.step=2;renderStep()},900)
@@ -512,7 +586,12 @@ function sConfirm(w,z){
       res.ids=ids;res.total=price*ids.length
     }
     if(!res.ok){
-      if(res.busy&&res.busy.length){bk.pcs=bk.pcs.filter(l=>!res.busy.includes(l));_bkData.ts=0;setTimeout(()=>{bk.step=2;renderStep()},900)}
+      if(res.busy&&res.busy.length){
+        // Сервер подсказывает, с какого времени ПК свободен — на шаге ПК будет кнопка «Взять с …»
+        const pc=res.busy[0]
+        bk.offer={pc,free:res.free&&res.free[pc]!=null?+res.free[pc]:null,msg:res.why&&res.why[pc]||'',unknown:!!(res.unknown&&res.unknown.includes(pc))}
+        bk.pcs=bk.pcs.filter(l=>!res.busy.includes(l));_bkData.ts=0;setTimeout(()=>{bk.step=2;renderStep()},900)
+      }
       return fail(res.error||T('Не удалось забронировать','Booking failed'))
     }
     const paid=res.total!=null?res.total:total

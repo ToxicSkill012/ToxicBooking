@@ -1,6 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║     TOXICSKILL — Google Apps Script Backend v7.3             ║
+// ║     TOXICSKILL — Google Apps Script Backend v7.4             ║
 // ║                                                              ║
+// ║  v7.4: бронь от остатка сессии на ПК (Gizmo или время от     ║
+// ║        админа), «свободен с …» при конфликте, предупреждение ║
+// ║        админу, если ПК занят перед бронью; лимит запросов    ║
+// ║        не общий на всех клиентов                             ║
 // ║  v7.3: уведомления владельцу с запасным ботом и проверкой,   ║
 // ║        честный статус ПК без выдуманного «осталось»          ║
 // ║  ЧТО НОВОГО В v7:                                            ║
@@ -54,16 +58,19 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.3'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.4'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
 const REQUIRE_TG_SIGNATURE = true
 
-// 🖥️ Gizmo: сколько минут считать ПК занятым, если мост не прислал время окончания
+// 🖥️ Gizmo: сколько минут считать ПК занятым, если неизвестно, когда закончится сессия
+// (мост не прислал остаток, админ не указал время, брони на ПК сейчас нет). Окно сдвигается вместе со временем.
 const GIZMO_UNKNOWN_BUSY_MIN = 60
 // Данные Gizmo старше этого — не учитываем (мост выключен)
 const GIZMO_STALE_MIN = 5
+// ⚠️ Предупредить админа, если до брони меньше стольких минут, а за её ПК всё ещё играют
+const SESSION_WARN_MIN = 30
 
 // ════════════════════════════════════════
 // ⭐ БАЛЛЫ — настройки (можно менять)
@@ -155,6 +162,19 @@ function rateOk(key, max) {
     return true
   } catch(e) { return true }
 }
+// Счётчик — у каждого клиента свой (Telegram ID или id устройства cid). Раньше все клиенты без tgId
+// делили один счётчик на 10–30 запросов в минуту: стоило приложению открыться у нескольких человек,
+// сервер отвечал «Слишком часто», список броней приходил пустым — и все ПК казались свободными.
+const RATE_WRITE = ['createBooking','redeemReward','cancelBooking']
+function rateKey_(p, a) {
+  var who = String(p.tgId || p.cid || '').replace(/[^\w-]/g, '').substring(0, 40)
+  return (who || 'anon') + '_' + a
+}
+function rateMax_(p, a) {
+  var anon = !String(p.tgId || p.cid || '').trim(), write = RATE_WRITE.indexOf(a) >= 0
+  if (write) return anon ? 30 : 8
+  return anon ? 600 : 60
+}
 
 // ════════════════════
 // SANITIZE
@@ -171,6 +191,9 @@ function sanTgHtml(s, n) {
 }
 
 function san(s, n) { return typeof s === 'string' ? s.replace(/[<>"']/g,'').substring(0,n||200).trim() : '' }
+// Текст от клиента → ячейка таблицы. «=…», «+…», «-…», «@…» Sheets выполнил бы как формулу
+// (через формулы можно вытащить данные из таблицы, когда её откроет владелец) — пишем как текст.
+function cell_(v) { v = String(v == null ? '' : v); return /^[=+\-@]/.test(v) ? "'" + v : v }
 
 // ═══════════════════════════════════════════════
 // 🔐 ПОДПИСЬ TELEGRAM (initData) — кто на самом деле прислал запрос
@@ -249,8 +272,7 @@ function bridgeReject_(p, action) {
 // ═══════════════════════════════════════════════
 function doGet(e) {
   const p = (e && e.parameter) || {}, a = p.action || ''
-  const isWrite = ['createBooking','redeemReward','cancelBooking'].includes(a)
-  if (!rateOk((p.tgId||'x')+'_'+a, isWrite ? 8 : 30)) {
+  if (!rateOk(rateKey_(p, a), rateMax_(p, a))) {
     return json({ ok: false, error: 'Слишком часто' })
   }
 
@@ -302,10 +324,11 @@ function doGet(e) {
       // Ключ моста — только подтверждённому владельцу, чтобы вписать его в адрес моста
       bridgeKey: dg.ok ? BRIDGE_KEY : '' })
   }
-  if (a === 'adminFind' || a === 'adminPoints' || a === 'adminBan' || a === 'adminBroadcast' || a === 'adminMaint' || a === 'adminMsg' || a === 'adminSetBal' || a === 'adminTempBan' || a === 'adminClubStats' || a === 'adminRunBday' || a === 'adminBookings' || a === 'adminTestTg') {
+  if (a === 'adminFind' || a === 'adminPoints' || a === 'adminBan' || a === 'adminBroadcast' || a === 'adminMaint' || a === 'adminMsg' || a === 'adminSetBal' || a === 'adminTempBan' || a === 'adminClubStats' || a === 'adminRunBday' || a === 'adminBookings' || a === 'adminTestTg' || a === 'adminSetLeft') {
     var av = verifyAdminEx(p)
     if (!av.ok) return json({ ok:false, error:'Доступ запрещён ('+av.why+')' })
     if (a === 'adminTestTg')    return json(adminTestTg())
+    if (a === 'adminSetLeft')   return json(adminSetLeft(san(p.pc,10), p.min))
     if (a === 'adminFind')      return json(adminFindUser(san(p.q,60)))
     if (a === 'adminPoints')    return json(adminAdjustPoints(san(p.tgId,20), p.amount, san(safeDec(p.reason||''),100)))
     if (a === 'adminBan')       return json(adminSetBan(san(p.tgId,20), p.on === '1'))
@@ -368,7 +391,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     const d = JSON.parse(e.postData.contents), a = d.action
-    if (!rateOk((d.tgId||'x')+'_'+a, 10)) return json({ ok:false, error:'Rate limit' })
+    if (!rateOk(rateKey_(d, a), rateMax_(d, a))) return json({ ok:false, error:'Rate limit' })
 
     if (a==='notify')        return json(sendTg(sanTgHtml(String(d.msg||''),2000)))
     if (a==='bugReport')     return json(sendBugReport(d.caption, d.photo))
@@ -508,7 +531,7 @@ function getPoints(tgId) {
 function logPts(tgId, user, phone, action, amount, reason, bkId) {
   const cur = getPoints(tgId)
   const newBal = Math.max(0, cur.balance + amount)
-  ptsSheet().appendRow([new Date().toISOString(), String(tgId), user||'', phone||'', action, amount, reason, bkId||'', newBal])
+  ptsSheet().appendRow([new Date().toISOString(), String(tgId), cell_(user), cell_(phone), action, amount, cell_(reason), bkId||'', newBal])
   return { ok:true, balance:newBal }
 }
 
@@ -660,7 +683,7 @@ function redeemReward(rewardId, tgId, user, phone) {
     var now = new Date()
     var exp = new Date(now.getTime() + PTS.voucherExpiry*3600000)
     var vid = 'VCH' + Date.now()
-    rwSheet().appendRow([vid,String(tgId),user||'',phone||'',rw.id,rw.label,rw.hours,rw.zone,rw.cost,now.toISOString(),exp.toISOString(),'active',''])
+    rwSheet().appendRow([vid,String(tgId),cell_(user),cell_(phone),rw.id,rw.label,rw.hours,rw.zone,rw.cost,now.toISOString(),exp.toISOString(),'active',''])
   } finally { lock.releaseLock() }
 
   const tz = CLUB_TZ
@@ -776,8 +799,8 @@ function validatePromo(code, userName, userPhone, tgId) {
       new Date().toISOString(),
       code,
       tgId || '',
-      userName || 'Гость',
-      userPhone || '',
+      cell_(userName || 'Гость'),
+      cell_(userPhone),
       bonus,
       disc
     ])
@@ -833,7 +856,7 @@ function submitReview(tgId, user, rating, text) {
 
   // Записываем
   var rvSh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_REVIEWS) || (setupAllSheets(), SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_REVIEWS))
-  rvSh.appendRow([new Date().toISOString(), tgId||'', user||'Гость', rating, text||'', ''])
+  rvSh.appendRow([new Date().toISOString(), tgId||'', cell_(user||'Гость'), rating, cell_(text), ''])
 
   // Звёзды для красоты
   var stars = ''
@@ -1190,7 +1213,7 @@ function createBookings_(plan) {
     SpreadsheetApp.flush()
     var sh = bookSheet(), rows = sh.getDataRange().getValues()
     var mine = plan.range, myDay = dayNum_(plan.date), nowAbs = plan.nowAbs
-    var want = {}; plan.pcs.forEach(function(pc){ want[pc] = 1 })
+    var want = {}, pcRanges = {}; plan.pcs.forEach(function(pc){ want[pc] = 1; pcRanges[pc] = [] })
     var busy = [], why = {}, curEnd = {}, active = 0, dayGroups = {}, ownClash = null
 
     for (var i = 1; i < rows.length; i++) {
@@ -1207,8 +1230,10 @@ function createBookings_(plan) {
         if (rDate === plan.date) dayGroups[String(r[14]||'') || String(r[0])] = 1
         if (!ownClash && rangesOverlap_(mine, their)) ownClash = rPc + ' ' + fmtTime(r[6]) + '–' + fmtTime(r[7])
       }
-      if (!want[rPc] || isNaN(rDay) || Math.abs(rDay - myDay) > 1) continue
-      if (their && their[0] <= nowAbs && nowAbs < their[1]) curEnd[rPc] = Math.max(curEnd[rPc] || 0, their[1])
+      if (!want[rPc] || isNaN(rDay) || !their) continue
+      if (rDay >= myDay - 1 && rDay <= myDay + 2) pcRanges[rPc].push(their)
+      if (Math.abs(rDay - myDay) > 1) continue
+      if (their[0] <= nowAbs && nowAbs < their[1]) curEnd[rPc] = Math.max(curEnd[rPc] || 0, their[1])
       if (rangesOverlap_(mine, their) && busy.indexOf(rPc) < 0) { busy.push(rPc); why[rPc] = rPc + ' уже забронирован на ' + fmtTime(r[6]) + '–' + fmtTime(r[7]) }
     }
 
@@ -1218,17 +1243,29 @@ function createBookings_(plan) {
       else if (Object.keys(dayGroups).length >= RULES.maxPerDay) fail = { ok:false, error:'Максимум ' + RULES.maxPerDay + ' броней в день' }
       else if (ownClash) fail = { ok:false, conflict:true, own:true, error:'У тебя уже есть бронь на это время: ' + ownClash + '. Несколько ПК сразу — через «Бронь для команды».' }
     }
-    // 🖥️ Gizmo: мешает только пересечение с ИДУЩЕЙ сессией
+    // 🖥️ Идущая сессия в клубе: ПК можно занять только после её конца
+    // (конец — по времени от админа, остатку из Gizmo или идущей брони; неизвестен — запас GIZMO_UNKNOWN_BUSY_MIN)
+    var hall = hallNow_(curEnd), free = {}
     if (!fail) plan.pcs.forEach(function(pc) {
-      if (busy.indexOf(pc) >= 0) return
-      var gz = gizmoHost_(pc)
-      if (!gz || !gz.busy) return
-      // Остаток неизвестен: если сейчас идёт бронь на этот ПК — сессия по ней, иначе берём запас
-      var sessEnd = gz.left !== null ? nowAbs + gz.left : (curEnd[pc] || nowAbs + GIZMO_UNKNOWN_BUSY_MIN)
-      if (rangesOverlap_(mine, [nowAbs, sessEnd])) { busy.push(pc); why[pc] = pc + ' сейчас занят в клубе' + (gz.left !== null || curEnd[pc] ? ' до ' + absToHm_(sessEnd) : '') }
+      var s = hall.live[pc]
+      if (!s) return
+      var sessEnd = s.end !== null ? s.end : nowAbs + GIZMO_UNKNOWN_BUSY_MIN
+      pcRanges[pc].push([nowAbs, sessEnd])
+      if (busy.indexOf(pc) >= 0 || !rangesOverlap_(mine, [nowAbs, sessEnd])) return
+      busy.push(pc)
+      why[pc] = s.end !== null ? pc + ' занят в клубе до ' + absToHm_(sessEnd)
+        : pc + ' сейчас занят в клубе — когда освободится, неизвестно. Выбери другой ПК или время на час позже'
     })
     if (!fail && busy.length) {
-      fail = { ok:false, conflict:true, busy:busy,
+      // Ближайшее время, когда ПК свободен на всю длительность — приложение предложит сдвинуть начало
+      busy.forEach(function(pc) {
+        var s = hall.live[pc]
+        if (s && s.end === null && rangesOverlap_(mine, [nowAbs, nowAbs + GIZMO_UNKNOWN_BUSY_MIN])) return
+        var t = firstFree_(pcRanges[pc], Math.max(mine[0], nowAbs), mine[1] - mine[0])
+        if (t !== null) { free[pc] = t; if (plan.pcs.length === 1) why[pc] += ' · свободен с ' + absToHm_(t) }
+      })
+      fail = { ok:false, conflict:true, busy:busy, free:free, why:why,
+        unknown: busy.filter(function(pc) { return hall.live[pc] && hall.live[pc].end === null }),
         error: plan.pcs.length > 1 ? 'Уже заняты на это время: ' + busy.join(', ') : why[busy[0]] }
     }
     if (fail) { lock.releaseLock(); return fail }
@@ -1238,7 +1275,9 @@ function createBookings_(plan) {
     var created = new Date().toISOString(), ids = []
     var out = plan.pcs.map(function(pc, k) {
       var id = 'BK' + (stamp + k); ids.push(id)
-      return [id, plan.user, plan.phone ? "'" + plan.phone : '', pc, plan.zone, plan.date, plan.start, plan.end,
+      // Дата и время — текстом: иначе Sheets превращает их в дату/время и при разных часовых поясах
+      // таблицы и скрипта время брони «уезжает»
+      return [id, cell_(plan.user), cell_(plan.phone), pc, plan.zone, "'" + plan.date, "'" + plan.start, "'" + plan.end,
         plan.label, plan.price, 'confirmed', created, plan.tgId || '', plan.source, team]
     })
     sh.getRange(sh.getLastRow() + 1, 1, out.length, 15).setValues(out)
@@ -1402,7 +1441,7 @@ function detectZone_(pc) {
 function gizmoUntil_(left, until, nowMs) {
   var l = parseFloat(left)
   if (left !== undefined && left !== null && String(left) !== '' && !isNaN(l) && l >= 0) {
-    return new Date(nowMs + Math.round(l)*60000).toISOString()
+    return new Date((Math.floor(nowMs / 60000) + Math.round(l)) * 60000).toISOString()
   }
   var u = String(until||'').trim()
   if (!u) return ''
@@ -1427,8 +1466,12 @@ function gizmoSave_(hosts) {
   } catch(e) {}
   hosts.forEach(function(h) {
     var p = prev[h.pc]
+    // Мост знает начало сессии (Gizmo: время входа игрока) — берём его
+    if (h.busy && h.sinceIso) { h.since = h.sinceIso; delete h.sinceIso; return }
+    delete h.sinceIso
     h.since = !h.busy ? '' : (p && p.busy) ? (p.since || '') : (prevFresh && p && !p.busy) ? now : ''
   })
+  try { sessOvrSync_(hosts) } catch(e) {}
   var values = [['pc','zone','busy','online','user','until','updatedAt','since']]
   hosts.forEach(function(h) { values.push([h.pc, h.zone, !!h.busy, h.online !== false, h.user || '', h.until || '', now, h.since || '']) })
   // Одной записью вместо appendRow на каждый ПК — в разы быстрее
@@ -1456,25 +1499,141 @@ function gizmoLoad_() {
   return { hosts:hosts, updatedAt: rows.length > 1 ? String(rows[1][6]) : '' }
 }
 
-// Состояние одного ПК для проверки брони: { busy, left (мин или null) }
-function gizmoHost_(pc) {
-  try {
-    var st = gizmoLoad_()
-    var age = st.updatedAt ? (Date.now() - new Date(st.updatedAt).getTime())/60000 : 999
-    if (age > GIZMO_STALE_MIN) return null
-    for (var i = 0; i < st.hosts.length; i++) {
-      var h = st.hosts[i]
-      if (String(h.pc).trim() !== String(pc).trim()) continue
-      var left = null
-      if (h.until) { var t = new Date(h.until).getTime(); if (!isNaN(t)) left = Math.max(0, Math.ceil((t - Date.now())/60000)) }
-      return { busy: !!h.busy, left: left }
-    }
-  } catch(e) {}
+// ═══════════════════════════════════════════════
+// ⏳ СЕССИИ В ЗАЛЕ — от них зависит, с какого времени ПК можно бронировать
+// ═══════════════════════════════════════════════
+// Конец сессии на ПК (по порядку):
+//   1. время, которое указал админ в панели («ST-04 — ещё 2 ч»): он знает, сколько оплатил гость;
+//   2. остаток из Gizmo (мост присылает «ST-04:1:45» — 45 мин);
+//   3. идущая бронь на этом ПК — за ним сидит тот, кто бронировал;
+//   4. иначе конец неизвестен: ПК занят ещё GIZMO_UNKNOWN_BUSY_MIN минут от «сейчас».
+// Время от админа хранится в свойстве SESS_OVR и снимается само: когда истекло или когда Gizmo
+// увидел, что игрок за этим ПК вышел.
+
+function sessOvrLoad_() { try { return JSON.parse(PROPS.getProperty('SESS_OVR') || '{}') || {} } catch(e) { return {} } }
+function sessOvrSave_(o) { try { PROPS.setProperty('SESS_OVR', JSON.stringify(o)) } catch(e) {} }
+
+// Что происходит в зале прямо сейчас. curEnd — {ПК: конец идущей брони} (если уже посчитан)
+// → { live: { ПК: { end: абс. минуты или null, src: 'admin'|'gizmo'|'booking'|'', since } }, fresh, nowAbs }
+function hallNow_(curEnd) {
+  var nowMs = Date.now(), nowAbs = nowAbsMin_(), live = {}, gz = {}, st = null
+  try { st = gizmoLoad_() } catch(e) {}
+  var fresh = !!(st && st.updatedAt) && (nowMs - new Date(st.updatedAt).getTime()) / 60000 <= GIZMO_STALE_MIN
+  if (fresh) st.hosts.forEach(function(h) { gz[String(h.pc).trim().toUpperCase()] = h })
+  // Конец сессии в минутах клуба — из точного времени окончания (как в приложении), а не «сейчас + остаток»:
+  // иначе секунды внутри минуты давали расхождение на минуту, и бронь «с 16:06» сервер отклонял
+  var offMin = nowAbs - Math.floor(nowMs / 60000)
+  var endOf = function(iso) { var t = new Date(iso).getTime(); return isNaN(t) ? null : Math.max(nowAbs, Math.round(t / 60000) + offMin) }
+  Object.keys(gz).forEach(function(pc) {
+    var h = gz[pc]
+    if (!h.busy) return
+    var end = h.until ? endOf(h.until) : null
+    if (end !== null) live[pc] = { end: end, src: 'gizmo', until: h.until }
+    else if (curEnd && curEnd[pc]) live[pc] = { end: curEnd[pc], src: 'booking' }
+    else live[pc] = { end: null, src: '' }
+    live[pc].since = String(h.since || '')
+  })
+  var ovr = sessOvrLoad_()
+  Object.keys(ovr).forEach(function(pc) {
+    var o = ovr[pc], end = endOf(o.until)
+    if (end === null || end <= nowAbs) return
+    // Gizmo видел, как игрок сел и потом вышел — время от админа больше не действует
+    if (gz[pc] && !gz[pc].busy && o.seen) return
+    live[pc] = { end: end, src: 'admin', until: o.until, since: (live[pc] && live[pc].since) || String(o.at || '') }
+  })
+  return { live: live, fresh: fresh, nowAbs: nowAbs, nowMs: nowMs, updatedAt: st ? st.updatedAt : '' }
+}
+
+// Ближайшее начало ≥ from, когда ПК свободен все dur минут (ranges — занятые отрезки), null — нет в пределах 2 суток
+function firstFree_(ranges, from, dur) {
+  var t = from, list = ranges.slice().sort(function(a, b) { return a[0] - b[0] })
+  for (var guard = 0; guard < 200; guard++) {
+    var hit = null
+    for (var i = 0; i < list.length; i++) if (list[i][0] < t + dur && t < list[i][1]) { hit = list[i]; break }
+    if (!hit) return t
+    t = hit[1]
+    if (t > from + 2 * 1440) return null
+  }
   return null
 }
 
+// 👑 Админ: сколько осталось у гостя за ПК (min — минуты; 0 — ПК свободен, снять время)
+function adminSetLeft(pc, min) {
+  pc = String(pc || '').trim().toUpperCase()
+  if (!zoneOfPc_(pc)) return { ok:false, error:'Неверный компьютер' }
+  var m = parseInt(min, 10)
+  if (isNaN(m) || m < 0 || m > 24 * 60) return { ok:false, error:'Время — от 0 до 24 часов' }
+  var ovr = sessOvrLoad_(), nowMs = Date.now()
+  if (m === 0) delete ovr[pc]
+  // До целой минуты: «ещё 2 ч», а не «2 ч 1 мин» из-за секунд
+  else ovr[pc] = { until: new Date((Math.floor(nowMs / 60000) + m) * 60000).toISOString(), at: new Date(nowMs).toISOString(), seen: false }
+  sessOvrSave_(ovr)
+  return { ok:true, pc:pc, left: m || null, until: m ? ovr[pc].until : '' }
+}
+
+// После каждой сводки моста: отметить, что Gizmo видел игрока, и снять время у ушедших
+function sessOvrSync_(hosts) {
+  var ovr = sessOvrLoad_(), changed = false, nowMs = Date.now(), by = {}
+  hosts.forEach(function(h) { by[String(h.pc).toUpperCase()] = h })
+  Object.keys(ovr).forEach(function(pc) {
+    var o = ovr[pc], h = by[pc], t = new Date(o.until).getTime()
+    if (isNaN(t) || t <= nowMs) { delete ovr[pc]; changed = true; return }
+    if (!h) return
+    if (h.busy && !o.seen) { o.seen = true; changed = true }
+    // Gizmo видел игрока, а теперь ПК свободен — гость ушёл раньше
+    else if (!h.busy && o.seen) { delete ovr[pc]; changed = true }
+    // Админ указал время, но за 15 минут никто так и не сел — снимаем
+    else if (!h.busy && !o.seen && nowMs - new Date(o.at).getTime() > 15 * 60000) { delete ovr[pc]; changed = true }
+  })
+  if (changed) sessOvrSave_(ovr)
+}
+
+// ⚠️ Перед бронью её ПК ещё занят и сессия не закончится к началу — предупредить админа один раз
+function warnSessionClashes_(rows) {
+  // Идущие брони: игрок по брони 18:00–20:00 уйдёт к 20:00 — следующая бронь в 20:00 не конфликт
+  var nowAbs0 = nowAbsMin_(), curEnd = {}
+  for (var j = 1; j < rows.length; j++) {
+    var rs = String(rows[j][10]).trim().toLowerCase()
+    if (!String(rows[j][0]).trim() || rs === 'cancelled' || rs === 'completed') continue
+    var rr = bookingRange_(fmtDate(rows[j][5]), fmtTime(rows[j][6]), fmtTime(rows[j][7])), rp = String(rows[j][3]).trim().toUpperCase()
+    if (rr && rr[0] <= nowAbs0 && nowAbs0 < rr[1]) curEnd[rp] = Math.max(curEnd[rp] || 0, rr[1])
+  }
+  var hall = hallNow_(curEnd), nowAbs = hall.nowAbs, cache = CacheService.getScriptCache(), sent = 0
+  if (!Object.keys(hall.live).length) return 0
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i], id = String(r[0]).trim()
+    if (!id) continue
+    var st = String(r[10]).trim().toLowerCase()
+    if (st === 'cancelled' || st === 'completed') continue
+    var range = bookingRange_(fmtDate(r[5]), fmtTime(r[6]), fmtTime(r[7]))
+    if (!range) continue
+    var inMin = range[0] - nowAbs
+    if (inMin < 0 || inMin > SESSION_WARN_MIN) continue
+    var pc = String(r[3]).trim().toUpperCase(), s = hall.live[pc]
+    if (!s || (s.end !== null && s.end <= range[0])) continue
+    // Бронь с этого же ПК идёт прямо сейчас и продолжается этой — не конфликт
+    if (s.src === 'booking') continue
+    if (cache.get('clash_' + id)) continue
+    cache.put('clash_' + id, '1', 21600)
+    sendTg('⚠️ <b>' + pc + ' ещё занят, а скоро бронь</b>\n' +
+      '🎮 Сейчас играют' + (s.end !== null ? ' до <b>' + absToHm_(s.end) + '</b>' + (s.src === 'admin' ? ' (время от админа)' : '') : ' — сколько осталось, неизвестно') + '\n' +
+      '📅 Бронь в <b>' + fmtTime(r[6]) + '</b> (через ' + durRu_(Math.max(1, inMin)) + '): ' + tgEsc_(String(r[1])) + (String(r[2]) ? ' · ' + tgEsc_(String(r[2])) : '') + '\n' +
+      'Пересади гостя или предупреди его, что время на этом ПК заканчивается.\n#занят')
+    sent++
+  }
+  return sent
+}
+
+// Начало сессии по «сколько минут уже играет» → ISO (мусор и неправдоподобное — пусто)
+function gizmoSince_(played, nowMs) {
+  var m = parseFloat(played)
+  if (played === undefined || played === null || String(played) === '' || isNaN(m) || m < 0 || m > 48 * 60) return ''
+  return new Date(nowMs - Math.round(m) * 60000).toISOString()
+}
+
 // Принять компактный статус от Gizmo Bridge (GET)
-// Формат: hosts=ST-01:0,ST-02:1:45,VIP-01:1:120   (ПК:занят[:минут осталось])
+// Формат: hosts=ST-01:0,ST-02:1:45,VIP-01:1:120:30   (ПК:занят[:минут осталось[:минут уже играет]])
+// Остаток можно не знать, а начало — знать: ST-03:1::25
 function gizmoSyncCompact(hostsStr, total, busy, free) {
   if (!hostsStr) return { ok:false, error:'No data' }
   try {
@@ -1484,7 +1643,7 @@ function gizmoSyncCompact(hostsStr, total, busy, free) {
       if (parts.length < 2 || !parts[0]) return
       var pc = san(parts[0], 20).toUpperCase(), isBusy = parts[1] === '1'
       hosts.push({ pc:pc, zone:detectZone_(pc), busy:isBusy, online:true, user:'',
-        until: isBusy ? gizmoUntil_(parts[2], '', nowMs) : '' })
+        until: isBusy ? gizmoUntil_(parts[2], '', nowMs) : '', sinceIso: isBusy ? gizmoSince_(parts[3], nowMs) : '' })
     })
     gizmoSave_(hosts)
     return { ok:true, count:hosts.length }
@@ -1501,8 +1660,10 @@ function gizmoSync(hostsJson) {
     var nowMs = Date.now()
     var hosts = list.filter(function(h){ return h && h.pc }).map(function(h) {
       var pc = san(String(h.pc), 20).toUpperCase(), isBusy = h.busy === true || h.busy === 1 || String(h.busy) === 'true'
+      var since = ''
+      if (isBusy) { since = gizmoSince_(h.played, nowMs); if (!since && h.since) { var sd = new Date(h.since); if (!isNaN(sd.getTime()) && sd.getTime() <= nowMs) since = sd.toISOString() } }
       return { pc:pc, zone:h.zone ? san(String(h.zone),10) : detectZone_(pc), busy:isBusy, online:h.online !== false,
-        user:san(String(h.user||''),40), until: isBusy ? gizmoUntil_(h.left, h.until, nowMs) : '' }
+        user:san(String(h.user||''),40), until: isBusy ? gizmoUntil_(h.left, h.until, nowMs) : '', sinceIso: since }
     })
     gizmoSave_(hosts)
     return { ok:true, count:hosts.length }
@@ -1513,7 +1674,8 @@ function gizmoSync(hostsJson) {
 function getGizmoStatus() {
   try {
     var st = gizmoLoad_()
-    if (!st.hosts.length) return { ok:true, hosts:[], source:'none' }
+    // Моста нет, но админ указал время на ПК — клиенты всё равно видят «занят до …»
+    if (!st.hosts.length) return { ok:true, hosts:[], source:'none', now:Date.now(), live:hallLive_(), bridge:false }
     var nowMs = Date.now()
     var hosts = st.hosts.map(function(h) {
       var left = null
@@ -1524,7 +1686,7 @@ function getGizmoStatus() {
     })
     var ageMin = st.updatedAt ? Math.round((nowMs - new Date(st.updatedAt).getTime())/60000) : 999
     return {
-      ok:true, hosts:hosts, source:'gizmo', now:nowMs,
+      ok:true, hosts:hosts, source:'gizmo', now:nowMs, live:hallLive_(), bridge: ageMin <= GIZMO_STALE_MIN,
       updatedAt:st.updatedAt,
       fresh: ageMin < 2, // данные свежие если менее 2 минут
       total:hosts.length,
@@ -1533,6 +1695,17 @@ function getGizmoStatus() {
     }
   } catch(e) { return { ok:true, hosts:[], source:'error' } }
 }
+// Занятые сейчас ПК для приложения: [{ pc, left (мин или null — неизвестно), src: 'admin'|'gizmo'|'', since }]
+// Брони приложение учитывает само — у него есть их список
+function hallLive_() {
+  try {
+    var h = hallNow_(null)
+    return Object.keys(h.live).map(function(pc) {
+      var s = h.live[pc]
+      return { pc:pc, left: s.end !== null ? Math.max(0, s.end - h.nowAbs) : null, until: s.until || '', src:s.src, since:s.since || '' }
+    })
+  } catch(e) { return [] }
+}
 
 // ═══════════════════════════════════════════════
 // 📲 TG СООБЩЕНИЕ КЛИЕНТУ (после брони)
@@ -1540,15 +1713,9 @@ function getGizmoStatus() {
 
 function sendTgToUser(tgChatId, text) {
   if (!tgChatId || !text || !USER_BOT_TOKEN) return { ok:false }
-  try {
-    // 📲 Пользователям пишем с toxicskill_bot (через него они открывают приложение)
-    const r = UrlFetchApp.fetch('https://api.telegram.org/bot'+USER_BOT_TOKEN+'/sendMessage', {
-      method:'post', contentType:'application/json',
-      payload:JSON.stringify({ chat_id:String(tgChatId), text:text, parse_mode:'HTML' }),
-      muteHttpExceptions:true
-    })
-    return { ok: JSON.parse(r.getContentText()).ok }
-  } catch(e) { return { ok:false } }
+  // 📲 Пользователям пишем с toxicskill_bot (через него они открывают приложение).
+  // Telegram не разобрал разметку (например «&» в имени) — то же сообщение без неё, а не тишина
+  try { return { ok: tgSendTo_(USER_BOT_TOKEN, tgChatId, text).ok } } catch(e) { return { ok:false } }
 }
 
 // ═══════════════════
@@ -1614,6 +1781,8 @@ function sendBookingReminders() {
   var sent = 0
 
   var cache = CacheService.getScriptCache()
+  // Бронь для команды — одно напоминание на все её ПК (раньше приходило по сообщению на каждый ПК)
+  var due = {}, order = []
 
   for (var i = 1; i < rows.length; i++) {
     var r = rows[i]
@@ -1632,23 +1801,32 @@ function sendBookingReminders() {
     var tgId = String(r[12]).trim()
     if (!tgId) continue
 
-    var cacheKey = 'remind_' + id
-    if (cache.get(cacheKey)) continue
-
-    sendTgTyped(tgId,
-      '⏰ <b>Напоминание!</b>\n\n' +
-      '🖥 <b>' + String(r[3]) + '</b> (' + String(r[4]) + ')\n' +
-      '📆 Сегодня · ' + fmtTime(r[6]) + '–' + fmtTime(r[7]) + '\n' +
-      '📦 ' + String(r[8]) + '\n\n' +
-      '🏃 Через ~' + diff + ' минут — не опаздывай!\n' +
-      '📍 <b>ToxicSkill</b> · +375 33 665-66-52'
-    , 'bookings')
-
-    cache.put(cacheKey, '1', 7200)
-    sent++
+    var key = String(r[14] || '') || id
+    if (!due[key]) { due[key] = { tgId:tgId, r:r, diff:diff, pcs:[] }; order.push(key) }
+    due[key].pcs.push(String(r[3]))
   }
 
+  order.forEach(function(key) {
+    var cacheKey = 'remind_' + key
+    if (cache.get(cacheKey)) return
+    var d = due[key], r = d.r
+    var zoneTxt = { std:'Standard', vip:'VIP', bc:'Bootcamp', bootcamp:'Bootcamp' }[String(r[4])] || String(r[4])
+    sendTgTyped(d.tgId,
+      '⏰ <b>Напоминание!</b>\n\n' +
+      '🖥 <b>' + d.pcs.join(', ') + '</b> (' + zoneTxt + ')\n' +
+      '📆 ' + fmtTime(r[6]) + '–' + fmtTime(r[7]) + '\n' +
+      '📦 ' + tgEsc_(String(r[8])) + '\n\n' +
+      '🏃 Через ~' + d.diff + ' минут — не опаздывай!\n' +
+      '📍 <b>ToxicSkill</b> · +375 33 665-66-52'
+    , 'bookings')
+    cache.put(cacheKey, '1', 7200)
+    sent++
+  })
+
   if (sent > 0) Logger.log('⏰ Отправлено ' + sent + ' напоминаний')
+
+  // ПК брони ещё занят и сессия не закончится к её началу — пишем админу
+  try { var cl = warnSessionClashes_(rows); if (cl) Logger.log('⚠️ Предупреждений о занятых ПК: ' + cl) } catch(ce) {}
 
   // После напоминаний — авто-завершаем просроченные брони
   autoCompleteBookings()
@@ -1818,7 +1996,7 @@ function adminMessage(tgId, text) {
   text = String(text||'').trim()
   if (!tgId || !text) return { ok:false, error:'Укажи клиента и текст' }
   if (text.length > 500) return { ok:false, error:'Максимум 500 символов' }
-  var r = sendTgToUser(tgId, '💬 <b>Сообщение от ToxicSkill</b>\n\n' + text)
+  var r = sendTgToUser(tgId, '💬 <b>Сообщение от ToxicSkill</b>\n\n' + tgEsc_(text))
   return r.ok ? { ok:true } : { ok:false, error:'Клиент не запускал бота или заблокировал его' }
 }
 
@@ -1833,7 +2011,7 @@ function adminBroadcast(text) {
     var tg = String(rows[i][0]).trim()
     if (!tg) continue
     if (String(rows[i][6]||'').toUpperCase() === 'TRUE') continue
-    try { var r = sendTgTyped(tg, '📣 <b>ToxicSkill</b>\n\n' + text, 'events'); if (r.ok && !r.skipped) sent++ } catch(e) {}
+    try { var r = sendTgTyped(tg, '📣 <b>ToxicSkill</b>\n\n' + tgEsc_(text), 'events'); if (r.ok && !r.skipped) sent++ } catch(e) {}
     Utilities.sleep(60)
   }
   return { ok:true, sent:sent }
@@ -1993,14 +2171,14 @@ function saveUserProfile(tgId, name, phone, birthday) {
     var rows = sh.getDataRange().getValues()
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][0]) === String(tgId)) {
-        if (name) sh.getRange(i+1, 2).setValue(name)
-        if (phone) sh.getRange(i+1, 3).setValue(phone)
-        if (birthday) sh.getRange(i+1, 4).setValue(birthday)
+        if (name) sh.getRange(i+1, 2).setValue(cell_(name))
+        if (phone) sh.getRange(i+1, 3).setValue(cell_(phone))
+        if (birthday) sh.getRange(i+1, 4).setValue(cell_(birthday))
         sh.getRange(i+1, 6).setValue(new Date().toISOString())
         return { ok:true, updated:true }
       }
     }
-    sh.appendRow([String(tgId), name||'', phone||'', birthday||'', '', new Date().toISOString()])
+    sh.appendRow([String(tgId), cell_(name), cell_(phone), cell_(birthday), '', new Date().toISOString()])
     return { ok:true, created:true }
   } catch(e) { return { ok:false, error:e.toString() } }
 }
@@ -2013,6 +2191,8 @@ function sendBirthdayBonuses() {
     var tz = CLUB_TZ
     var todayDM = Utilities.formatDate(now, tz, 'dd.MM')
     var year = Utilities.formatDate(now, tz, 'yyyy')
+    // Родился 29 февраля — в невисокосный год поздравляем 28-го (иначе бонус не приходил три года из четырёх)
+    var y = +year, leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
     var BDAY_BONUS = 50
     var sent = 0
     for (var i = 1; i < rows.length; i++) {
@@ -2035,11 +2215,12 @@ function sendBirthdayBonuses() {
       }
       var lastBonus = String(rows[i][4]||'').trim()
       if (!tgId || !bdayDM) continue
+      if (bdayDM === '29.02' && !leap) bdayDM = '28.02'
       if (bdayDM !== todayDM) continue
       if (lastBonus === year) continue
       logPts(tgId, name, '', 'birthday', BDAY_BONUS, 'День рождения', '')
       sendTgTyped(tgId,
-        '🎂 <b>С Днём Рождения' + (name ? ', ' + name : '') + '!</b>\n\n' +
+        '🎂 <b>С Днём Рождения' + (name ? ', ' + tgEsc_(name) : '') + '!</b>\n\n' +
         'Команда ToxicSkill поздравляет тебя! 🎉\n\n' +
         '🎁 Лови подарок — <b>+' + BDAY_BONUS + ' ⭐ баллов</b> на счёт!\n' +
         'Потрать их на бесплатные часы игры 🎮\n\n' +

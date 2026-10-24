@@ -85,7 +85,9 @@ function adminBridgeCard(d){
       html+=g.withLeft
         ?`<div class="br-t sm">⏱ Остаток времени известен у ${g.withLeft} из ${g.busy} занятых ПК — клиенты видят «занят до 19:45».</div>`
         :`<div class="br-warn">⏱ Мост не присылает, <b>сколько осталось</b> у сессии — только «занят/свободен». Клиенты видят «занят · в игре 40 мин», а время окончания — только по броням.
-          Чтобы было «занят до 19:45», мост должен слать минуты: <code>ST-01:1:45</code>. Мост из папки <code>bridge</code> берёт остаток прямо из Gizmo.</div>`
+          Тогда ПК без брони считается занятым ещё час от «сейчас», и клиенты не видят, когда он освободится.
+          Как исправить: запусти мост из папки <code>bridge</code> — он берёт остаток прямо из Gizmo, или старый мост должен слать минуты (<code>ST-01:1:45</code>).
+          А пока можно указывать время вручную: «Зал сейчас» ниже → ⏱.</div>`
     }
     if(legacy)html+=`<div class="br-t sm">Работает старый мост без ключа — это нормально. Чтобы посторонние не могли подменить статусы, добавь ему <code>&key=…</code> (адрес ниже) и свойство <code>BRIDGE_STRICT</code> = <code>1</code>.</div>`
   }else{
@@ -243,7 +245,79 @@ async function adminMaintToggle(){
   applyMaintUI()
 }
 
-// ── АДМИН: БРОНИ СЕГОДНЯ// ── АДМИН: БРОНИ СЕГОДНЯ (управление залом) ──
+// ── АДМИН: ЗАЛ СЕЙЧАС ──
+// Кто играет, сколько осталось (из Gizmo или указал админ), ближайшая бронь и конфликт «не успеет к брони».
+// Мост не знает остаток — админ указывает его сам (⏱): клиенты видят «занят до …» и бронируют с этого времени.
+let _hallOpen='',_hallData=null
+async function renderAdminHall(reload=true){
+  const box=document.getElementById('adm-hall');if(!box||!isAdmin())return
+  if(reload||!_hallData){
+    let all=[]
+    try{const r=await Promise.all([loadGizmoStatus(),loadAdminBookings()]);all=r[1]||[]}catch(e){}
+    _hallData=all.filter(b=>b.status!=='cancelled'&&b.status!=='completed')
+  }
+  const all=_hallData,now=clubNow().abs
+  const srcTxt={gizmo:'Gizmo',admin:'указал админ',booking:'по брони'}
+  let playing=0,unknown=0,clashes=0
+  const rowOf=lbl=>{
+    const s=pcSession(lbl,all)
+    const bks=all.filter(b=>b.pc===lbl).map(b=>({b,r:bookingAbsRange(b.date,b.start,b.end)})).filter(x=>x.r).sort((a,b)=>a.r[0]-b.r[0])
+    const cur=bks.find(x=>x.r[0]<=now&&now<x.r[1]),next=bks.find(x=>x.r[0]>now)
+    let st,cls
+    if(s){
+      playing++
+      if(s.end!==null){st=`🎮 ещё <b>${fmtDur(s.end-now)}</b> · до ${fmtAbs(s.end)} <i class="ah-src">${srcTxt[s.src]||'Gizmo'}</i>`;cls='busy'}
+      else{unknown++;st=`🎮 ${s.sinceMin!=null?playingLabel(s.sinceMin):'играют'} · <span class="ah-warn">конец неизвестен</span>`;cls='unk'}
+    }else if(cur){st=`📅 по брони до ${fmtAbs(cur.r[1])}`;cls='busy'}
+    else{st='свободен';cls='free'}
+    // Конфликт: сессия не закончится к следующей брони (или конец неизвестен, а бронь меньше чем через час)
+    let nx=''
+    if(next){
+      const clash=s&&(s.end===null?next.r[0]-now<=60:s.end>next.r[0])
+      if(clash)clashes++
+      nx=`<div class="ah-nx${clash?' clash':''}">${clash?'⚠️ не успеет к брони · ':''}бронь ${minToHM(next.r[0])}–${minToHM(next.r[1])}${next.r[0]-now<24*60?` (через ${fmtDur(next.r[0]-now)})`:''} · ${esc(next.b.user||'Гость')}</div>`
+    }
+    const open=_hallOpen===lbl
+    return `<div class="ah-r ${cls}${open?' open':''}">
+      <div class="ah-top"><b class="ah-pc">${lbl}</b><div class="ah-st">${st}</div>
+        <button type="button" class="ah-b" onclick="adminHallEdit('${lbl}')" aria-label="Указать время">⏱</button></div>${nx}
+      ${open?`<div class="ah-ed"><div class="ah-ed-t">Сколько осталось у гостя за ${lbl}?</div>
+        <div class="ah-chips">${[[30,'30 мин'],[60,'1 ч'],[90,'1,5 ч'],[120,'2 ч'],[180,'3 ч'],[300,'5 ч'],[600,'10 ч']].map(([m,t])=>`<button type="button" class="tp-chip" onclick="adminSetLeft('${lbl}',${m})">${t}</button>`).join('')}
+        <button type="button" class="tp-chip" onclick="adminSetLeftAsk('${lbl}')">✎ другое</button>
+        ${s&&s.src==='admin'||cls!=='free'?`<button type="button" class="tp-chip ah-free" onclick="adminSetLeft('${lbl}',0)">✕ свободен</button>`:''}</div>
+        <div class="ah-ed-n">Клиенты сразу увидят «занят до …» и смогут бронировать ${lbl} с этого времени. Время снимется само, когда гость выйдет из Gizmo.</div></div>`:''}
+    </div>`
+  }
+  const zones=Object.keys(ZONES).map(k=>`<div class="ah-z">${ZONES[k].emoji} ${k==='bc'?'Bootcamp':k==='vip'?'VIP':'Standard'}</div>${zonePcs(k).sort().map(rowOf).join('')}`).join('')
+  const head=`<div class="ah-h"><span>Играют на <b>${playing}</b> из ${TOTAL_PCS} ПК${unknown?` · у <b class="ah-warn">${unknown}</b> конец неизвестен`:''}${clashes?` · <b class="ah-warn">⚠️ ${clashes}</b> не успеют к брони`:''}</span>
+    <button type="button" class="tp-chip" onclick="renderAdminHall()">🔄</button></div>
+    ${unknown?'<div class="ah-tip">Мост не знает, сколько осталось у этих гостей. Нажми ⏱ и укажи время — клиенты увидят, с какого времени ПК свободен.</div>':''}`
+  box.innerHTML=`<div class="ah">${head}${zones}</div>`
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function adminHallEdit(lbl){_hallOpen=_hallOpen===lbl?'':lbl;haptic('light');renderAdminHall(false)}
+function adminSetLeftAsk(lbl){
+  const v=prompt(`${lbl}: сколько осталось? Минуты (например 45) или до скольки (например 21:30)`,'')
+  if(v===null)return
+  const t=String(v).trim()
+  let m=NaN
+  if(/^\d{1,2}[:.]\d{2}$/.test(t)){
+    const [h,mm]=t.split(/[:.]/).map(Number),now=clubNow()
+    if(h<24&&mm<60){m=h*60+mm-now.min;if(m<=0)m+=1440}
+  }else if(/^\d+$/.test(t))m=+t
+  if(isNaN(m)||m<1||m>1440){toast('Введи минуты (1–1440) или время ЧЧ:ММ','⚠️');return}
+  adminSetLeft(lbl,m)
+}
+async function adminSetLeft(lbl,min){
+  const d=await apiGetJSON({action:'adminSetLeft',pc:lbl,min:String(min),initData:_admInit(),adminKey:D._admKey||''})
+  if(!d||!d.ok){toast(d&&d.error==='bad_json'?'Обнови бэкенд до v7.4':(d&&d.error)||'Нет связи','⚠️');haptic('err');return}
+  haptic('ok')
+  toast(min?`${lbl}: занят ещё ${fmtDur(min)} — до ${minToHM(clubNow().abs+min)}`:`${lbl}: свободен`,'⏱')
+  _hallOpen='';_bkData.ts=0
+  renderAdminHall()
+}
+
+// ── АДМИН: БРОНИ СЕГОДНЯ (управление залом) ──
 async function renderAdminToday(){
   const box=document.getElementById('adm-today');if(!box||!isAdmin())return
   let all=[];try{all=await loadAdminBookings()}catch(e){}
@@ -257,7 +331,7 @@ async function renderAdminToday(){
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:13px;background:linear-gradient(160deg,var(--s2),var(--s1));border:1px solid var(--b1);margin-bottom:7px">
       <div style="font-family:var(--m);font-size:13px;font-weight:700;color:var(--cyan);flex-shrink:0;min-width:78px">${b.start}–${b.end}</div>
       <div style="font-family:var(--F);font-size:13px;font-weight:800;color:var(--lime);flex-shrink:0">${b.pc}</div>
-      <div style="flex:1;min-width:0;font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.user||'—'}</div>
+      <div style="flex:1;min-width:0;font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.user||'—')}</div>
       <span class="B ${off?'Bg':'Bl'}" style="flex-shrink:0;font-size:8px">${off?'ОФФ':'APP'}</span>
       <button onclick="adminCancelAny('${b.id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:9px;background:rgba(255,63,96,.12);border:1px solid rgba(255,63,96,.3);color:var(--red);font-size:13px;cursor:pointer">✕</button>
     </div>`
@@ -320,8 +394,8 @@ function renderAdmClient(){
     <div style="padding:14px;border-radius:16px;background:linear-gradient(160deg,var(--s2),var(--s1));border:1px solid ${c.banned?'rgba(255,63,96,.35)':'var(--b1)'}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
         <div style="min-width:0">
-          <div style="font-size:14px;font-weight:800;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name||'Без имени'}</div>
-          <div style="font-family:var(--m);font-size:10px;color:var(--t3);margin-top:2px">${c.phone||'—'} · ID ${c.tgId}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name||'Без имени')}</div>
+          <div style="font-family:var(--m);font-size:10px;color:var(--t3);margin-top:2px">${esc(c.phone||'—')} · ID ${esc(c.tgId)}</div>
         </div>
         <span class="B ${c.banned?'Bx':'Bl'}">${c.banned?'🚫 БАН':'✅ ОК'}</span>
       </div>

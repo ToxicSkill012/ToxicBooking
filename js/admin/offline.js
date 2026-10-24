@@ -16,7 +16,7 @@ async function openAdminBooking(){
     <div id="ab-body"><div class="TB2 tp-load"><span class="spin"></span></div></div>`
   openM('admin-book-m')
   try{
-    const [,b]=await Promise.all([gizmoFresh()?null:loadGizmoStatus(),loadBookings(null,null,true)])
+    const [,b]=await Promise.all([liveKnown()?null:loadGizmoStatus(),loadBookings(null,null,true)])
     AB.bookings=b||[]
   }catch(e){AB.bookings=[]}
   abRender()
@@ -180,18 +180,10 @@ function abPcs(){
   const [s,e]=abInterval(),map=busyMap(AB.zone,AB.bookings),nowAbs=clubNow().abs
   AB.pcs=AB.pcs.filter(l=>!pcBlocker(map[l],s,e))
   const cell=n=>{
-    const lbl=pcLbl(AB.zone,n),blk=pcBlocker(map[lbl],s,e),sel=AB.pcs.includes(lbl)
-    let sub='свободен'
-    if(blk){
-      const unknown=blk[0]<=nowAbs&&isGizmoBusy(lbl)&&gizmoLeftMin(lbl)===null&&!pcRanges(lbl,AB.bookings).some(r=>r[0]<=nowAbs&&nowAbs<r[1])
-      const sm=gizmoSinceMin(lbl)
-      sub=unknown?(sm!=null?playingLabel(sm):'занят сейчас'):blk[0]<=nowAbs?'занят до '+fmtAbs(blk[1]):'бронь '+minToHM(blk[0])+'–'+minToHM(blk[1])
-    }else{
-      const next=map[lbl].find(r=>r[0]>=e)
-      if(next&&next[0]-e<=180)sub='свободен до '+minToHM(next[0])
-    }
-    return `<button type="button" class="PCB ${blk?'st-busy':'st-free'}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}">
-      <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${sub}</div><div class="pc-ok">✓</div></button>`
+    const lbl=pcLbl(AB.zone,n),o=pcSlot(lbl,map,AB.bookings,s,e),sel=AB.pcs.includes(lbl)
+    return `<button type="button" class="PCB ${o.busy?'st-busy':'st-free'}${o.live?' live':''}${sel?' sel':''}" data-pc="${lbl}" style="--zc:${z.color}">
+      <div class="pc-id">${String(n).padStart(2,'0')}</div><div class="pc-st">${o.sub}</div>${o.note?`<div class="pc-nt">${o.note}</div>`:''}${o.now?`<div class="pc-now">${o.now}</div>`:''}
+      ${o.frac!=null?`<i class="pc-tl" style="--p:${o.frac.toFixed(3)}"></i>`:''}<div class="pc-ok">✓</div></button>`
   }
   box.innerHTML=`<div class="PCG${z.layout.length>1?' PCG-cols':''}">${z.layout.map((col,ci)=>`<div class="pc-col">${z.sides?`<div class="pc-side">${z.sides[ci]}</div>`:''}${col.map(cell).join('')}</div>`).join('')}</div>`
   box.querySelectorAll('.PCB').forEach(b=>b.onclick=()=>adminPickPc(b.dataset.pc))
@@ -200,7 +192,7 @@ function abPcs(){
 function adminPickPc(lbl){
   if(!AB)return
   const b=document.querySelector(`#ab-pcs .PCB[data-pc="${lbl}"]`)
-  if(b&&b.classList.contains('st-busy')){toast(`${lbl}: ${b.querySelector('.pc-st').textContent}`,'🔒');haptic('warn');return}
+  if(b&&b.classList.contains('st-busy')){const nt=b.querySelector('.pc-nt');toast(`${lbl}: ${b.querySelector('.pc-st').textContent}${nt?' · '+nt.textContent:''}`,'🔒');haptic('warn');return}
   const i=AB.pcs.indexOf(lbl)
   if(i>=0)AB.pcs.splice(i,1)
   else if(AB.pcs.length<RULES.maxTeam)AB.pcs.push(lbl)
@@ -253,7 +245,7 @@ async function renderAdminOffline(){
   const offline=all.filter(b=>String(b.pkg||'').includes('Оффлайн')&&b.status!=='cancelled'&&b.status!=='completed').slice(0,10)
   if(!offline.length){box.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:10px">Нет активных оффлайн-броней</div>';return}
   box.innerHTML=offline.map(b=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:linear-gradient(135deg,rgba(75,158,255,.08),rgba(42,237,181,.03));border:1px solid rgba(75,158,255,.18);border-radius:12px;margin-bottom:7px">
-    <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--blue)">${b.pc} <span style="color:var(--t2);font-weight:400;font-size:11px">· ${b.user||'Гость'}</span></div><div style="font-size:11px;color:var(--t2);margin-top:2px;font-family:var(--m)">${b.date} · ${b.start}–${b.end}</div></div>
+    <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--blue)">${b.pc} <span style="color:var(--t2);font-weight:400;font-size:11px">· ${esc(b.user||'Гость')}</span></div><div style="font-size:11px;color:var(--t2);margin-top:2px;font-family:var(--m)">${b.date} · ${b.start}–${b.end}</div></div>
     <button onclick="adminCancelOffline('${b.id}')" style="padding:7px 12px;border-radius:9px;background:rgba(255,63,96,.1);border:1px solid rgba(255,63,96,.25);color:var(--red);font-size:11px;font-weight:600;cursor:pointer">Снять</button>
   </div>`).join('')
 }
