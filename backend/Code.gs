@@ -1,7 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║     TOXICSKILL — Google Apps Script Backend v7.5             ║
 // ║                                                              ║
-// ║  v7.5: ST-14 (в Standard 14 ПК); брони без аккаунта Telegram ║
+// ║  v7.5: ST-15 (в Standard 14 ПК: 01–13 и 15); брони без      ║
+// ║        аккаунта Telegram                                     ║
 // ║        видны клиенту и на другом телефоне (по его номеру);   ║
 // ║        подпись Telegram — до 7 дней; мост замолчал — ПК с    ║
 // ║        известным концом сессии ещё час считаются занятыми    ║
@@ -1068,7 +1069,8 @@ function isOfflineSrc(b){ return b && b.source === 'offline' }
 // (то же самое — в js/core/config.js; меняешь цены — поменяй в обоих местах)
 // ═══════════════════════════════════════════════
 const TARIFF = {
-  std: { hour:6, pre:'ST',  pcs:14, pkgs:[
+  // В Standard 14 ПК: номера 01–13 и 15 (ST-14 нет) — номера ПК перечислены в nums
+  std: { hour:6, pre:'ST',  pcs:14, nums:[1,2,3,4,5,6,7,8,9,10,11,12,13,15], pkgs:[
     { id:'s0', n:'1 час',   h:1,  p:6  },
     { id:'s1', n:'3 часа',  h:3,  p:15 },
     { id:'s2', n:'5 часов', h:5,  p:21 },
@@ -1108,7 +1110,10 @@ function zoneKey_(z) {
 function zoneOfPc_(pc) {
   var m = /^(ST|VIP|BC)-(\d{2})$/.exec(String(pc||'').trim().toUpperCase())
   if (!m) return ''
-  for (var k in TARIFF) if (TARIFF[k].pre === m[1]) { var n = +m[2]; return n >= 1 && n <= TARIFF[k].pcs ? k : '' }
+  for (var k in TARIFF) if (TARIFF[k].pre === m[1]) {
+    var n = +m[2], t = TARIFF[k]
+    return (t.nums ? t.nums.indexOf(n) >= 0 : n >= 1 && n <= t.pcs) ? k : ''
+  }
   return ''
 }
 // Цена «своего времени»: каждые начатые 30 мин по часовому тарифу.

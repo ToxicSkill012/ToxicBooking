@@ -8,8 +8,8 @@ const ZONE_RGB={std:'196,255,62',vip:'255,202,80',bc:'75,158,255',bootcamp:'75,1
 function zA(z,a){const rgb=ZONE_RGB[typeof z==='string'?z:z&&z.key];return rgb?`rgba(${rgb},${a})`:'transparent'}
 const ZONES = {
   std:{key:'std',emoji:'⚡',name:'STANDARD',color:'var(--lime)',badge:'Bl',pcCount:14,pre:'ST',hour:6,
-    // Как стоят ПК в зале: левый и правый ряд
-    layout:[[1,3,5,7,9,11,13],[2,4,6,8,10,12,14]],sides:['← ЛЕВЫЙ РЯД','ПРАВЫЙ РЯД →'],
+    // Как стоят ПК в зале: левый и правый ряд. 14 ПК: 01–13 и 15 (номера 14 нет), ST-15 — в левом ряду после 13
+    layout:[[1,3,5,7,9,11,13,15],[2,4,6,8,10,12]],sides:['← ЛЕВЫЙ РЯД','ПРАВЫЙ РЯД →'],
     devices:{h:'HyperX Cloud 2',m:'HyperX Pulsefire Core',k:'HyperX Alloy Origins Core',mon:'Asus TUF 280Hz'},
     pc:{gpu:'RTX 3060Ti / 4060',cpu:'Ryzen 5 5500',ram:'16 GB'},
     stripe:'linear-gradient(90deg,var(--lime),var(--cyan))',
