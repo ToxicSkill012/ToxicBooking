@@ -16,7 +16,7 @@ async function loadBookings(date, zone, forceReload=false){
     if(zone) res = res.filter(b=>b.zone===zone)
     return res
   }
-  let bookings=[]
+  let bookings=null
   try{
     // POST не кэшируется CDN — всегда свежие данные
     const r=await fetch(API_URL,{
@@ -27,18 +27,28 @@ async function loadBookings(date, zone, forceReload=false){
     const d=await r.json()
     syncClock(d.now,now)
     if(d.ok) bookings=d.bookings||[]
-  }catch(e){
-    // Fallback GET
+  }catch(e){}
+  if(bookings===null){
+    // Запасной GET — и при сбое сети, и когда сервер ответил ошибкой
     try{
       const r2=await fetch(API_URL+'?action=getBookings&_t='+now,{cache:'no-store'})
       const d2=await r2.json()
       if(d2.ok) bookings=d2.bookings||[]
     }catch(e2){}
   }
+  if(bookings===null){
+    // Сервер не ответил: раньше подставлялся пустой список — и все ПК казались свободными.
+    // Оставляем прошлый список (если был) и помечаем, что данные не свежие
+    _bookingsCache.err=true
+    let res=_bookingsCache.loaded?_bookingsCache.data:[]
+    if(date) res=res.filter(b=>b.date===date)
+    if(zone) res=res.filter(b=>b.zone===zone)
+    return res
+  }
   // Оффлайн-брони из Gizmo НЕ показываем как брони — живая занятость
   // уже отражается через Gizmo live статус (isGizmoBusy). Иначе дубли/фантомы.
   bookings=bookings.filter(b=>b.status!=='offline'&&!String(b.id||'').startsWith('OFF'))
-  _bookingsCache={data:bookings,loaded:true,ts:now}
+  _bookingsCache={data:bookings,loaded:true,ts:now,err:false}
   if(date) bookings=bookings.filter(b=>b.date===date)
   if(zone) bookings=bookings.filter(b=>b.zone===zone)
   return bookings

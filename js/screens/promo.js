@@ -85,6 +85,7 @@ function renderPromoList(){
     const ak=document.getElementById('adm-key');if(ak&&D._admKey)ak.placeholder='🔑 ключ сохранён — можно заменить'
     adminRunDiag()
     idle(()=>renderAdminDash(),2000)
+    setTimeout(()=>idle(()=>renderAdminHall()),180)
     setTimeout(()=>idle(()=>renderAdminToday()),260)
     setTimeout(()=>idle(()=>renderAdminOffline()),520)
   }

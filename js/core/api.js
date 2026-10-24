@@ -2,6 +2,15 @@
 
 // Подпись Telegram (initData) — по ней сервер узнаёт, кто реально прислал запрос
 function tgInit(){try{return window.Telegram?.WebApp?.initData||''}catch(e){return ''}}
+// Случайный id устройства: по нему сервер считает лимит запросов у каждого клиента отдельно
+// (раньше все без Telegram ID делили один счётчик и получали «Слишком часто»). Личных данных в нём нет.
+let _cid=''
+function deviceId(){
+  if(_cid)return _cid
+  try{_cid=localStorage.getItem('ts_cid')||'';if(!_cid){_cid=Math.random().toString(36).slice(2,12)+Date.now().toString(36).slice(-4);localStorage.setItem('ts_cid',_cid)}}
+  catch(e){_cid=_cid||Math.random().toString(36).slice(2,12)}
+  return _cid
+}
 
 // 🔐 Ко всем запросам к бэкенду автоматически добавляем подпись Telegram,
 // а к админским — ключ владельца. Так ни один вызов не забудет авторизацию.
@@ -19,12 +28,14 @@ function tgInit(){try{return window.Telegram?.WebApp?.initData||''}catch(e){retu
           const u=new URL(url)
           if(initData&&!u.searchParams.has('initData'))u.searchParams.set('initData',initData)
           if(!u.searchParams.has('tgId')&&typeof D!=='undefined'&&D.user&&D.user._tgId)u.searchParams.set('tgId',D.user._tgId)
+          if(!u.searchParams.has('cid'))u.searchParams.set('cid',deviceId())
           return orig.call(this,u.toString(),init2)
         }
         if(method==='POST'&&typeof init2.body==='string'){
           const body=JSON.parse(init2.body)
           if(initData&&!body.initData)body.initData=initData
           if(!body.tgId&&typeof D!=='undefined'&&D.user&&D.user._tgId)body.tgId=D.user._tgId
+          if(!body.cid)body.cid=deviceId()
           if(ADMIN_POST.includes(body.action)&&typeof D!=='undefined'&&D._admKey&&!body.adminKey)body.adminKey=D._admKey
           init2.body=JSON.stringify(body)
           return orig.call(this,url,init2)

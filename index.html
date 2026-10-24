@@ -21,8 +21,8 @@
 <meta name="referrer" content="no-referrer"/>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=4.2.0">
-<link rel="stylesheet" href="css/glass.css?v=4.2.0">
+<link rel="stylesheet" href="css/app.css?v=4.3.0">
+<link rel="stylesheet" href="css/glass.css?v=4.3.0">
 <script>
 // До загрузки стилей: «лёгкий режим» и класс мощности устройства — без вспышки тяжёлых эффектов
 (function(){var h=document.documentElement;try{localStorage.removeItem('ts_lowfx');var f=localStorage.getItem('ts_fx'),u=+localStorage.getItem('ts_lowfx_until')||0;
@@ -609,6 +609,12 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
       <div style="text-align:center;color:var(--t3);font-size:11px;padding:20px"><span class="spin"></span></div>
     </div>
 
+    <!-- Зал сейчас: кто играет, сколько осталось, ближайшие брони; время можно указать вручную -->
+    <div class="SL" style="margin-top:18px">Зал сейчас</div>
+    <div id="adm-hall">
+      <div style="text-align:center;color:var(--t3);font-size:11px;padding:14px"><span class="spin"></span></div>
+    </div>
+
     <!-- Клиенты: баллы и бан -->
     <div class="SL" style="margin-top:18px">Клиенты · баллы и доступ</div>
     <div class="PA">
@@ -1099,18 +1105,17 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div class="MH"></div>
     <div style="text-align:center;padding:2px 0 16px">
       <div class="wn-badge-ico"><span>✨</span></div>
-      <div class="wn-ver">ОБНОВЛЕНИЕ v4.2</div>
+      <div class="wn-ver">ОБНОВЛЕНИЕ v4.3</div>
       <div class="wn-title">Что нового</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:5px">Честная занятость, новая лента и стекло везде</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:5px">Бронь от того, сколько осталось играть на ПК</div>
     </div>
 
     <div class="wn-list">
-      <div class="wn-item lime"><div class="wn-ic">🟢</div><div><b>Честная занятость ПК</b><span>«Занят до 19:45», если клуб знает конец сессии, или «в игре 40 мин» — без выдуманного времени</span></div></div>
-      <div class="wn-item gold"><div class="wn-ic">🎚</div><div><b>Новая лента времени</b><span>Крупные часы, линейка до 5 минут и полоса занятости: сразу видно, когда свободно</span></div></div>
-      <div class="wn-item blue"><div class="wn-ic">⏱</div><div><b>Ползунок длительности</b><span>Тянешь — над пальцем подсказка «2 ч 30 мин», цена пересчитывается сразу</span></div></div>
-      <div class="wn-item pink"><div class="wn-ic">✨</div><div><b>Стекло на всех экранах</b><span>Если телефон тормозит — в настройках есть «Стекло и эффекты», можно выключить</span></div></div>
-      <div class="wn-item"><div class="wn-ic">🕒</div><div><b>Точное время</b><span>Приложение сверяет часы с клубом — таймеры верные, даже если на телефоне время сбито</span></div></div>
-      <div class="wn-item lime"><div class="wn-ic">👥</div><div><b>Своё время и бронь для команды</b><span>От 30 минут до 12 часов, до 8 ПК рядом одной бронью</span></div></div>
+      <div class="wn-item lime"><div class="wn-ic">🎮</div><div><b>Видно, сколько осталось</b><span>На каждом ПК — «ещё 25 мин» у того, кто за ним играет, и с какого времени он свободен</span></div></div>
+      <div class="wn-item gold"><div class="wn-ic">⏳</div><div><b>«Взять с 19:45»</b><span>Нажми на занятый ПК — приложение сдвинет начало брони на время, когда он освободится</span></div></div>
+      <div class="wn-item blue"><div class="wn-ic">📅</div><div><b>Учитываем и брони</b><span>Если после игрока на ПК уже есть бронь, предложим время после неё — без накладок</span></div></div>
+      <div class="wn-item pink"><div class="wn-ic">🟢</div><div><b>Кто играет сейчас</b><span>На шаге «Когда» — на скольких ПК играют и какой освободится раньше всех</span></div></div>
+      <div class="wn-item"><div class="wn-ic">🛠</div><div><b>Исправления</b><span>Занятость больше не пропадает, когда приложение открыто у многих сразу; точнее время окончания</span></div></div>
     </div>
 
     <div class="wn-fb">
@@ -1174,31 +1179,31 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- Toast -->
 <div id="toast"></div>
-<script defer src="js/core/guard.js?v=4.2.0"></script>
-<script defer src="js/core/i18n.js?v=4.2.0"></script>
-<script defer src="js/core/config.js?v=4.2.0"></script>
-<script defer src="js/core/clock.js?v=4.2.0"></script>
-<script defer src="js/core/api.js?v=4.2.0"></script>
-<script defer src="js/core/state.js?v=4.2.0"></script>
-<script defer src="js/core/diag.js?v=4.2.0"></script>
-<script defer src="js/core/ui.js?v=4.2.0"></script>
-<script defer src="js/screens/home.js?v=4.2.0"></script>
-<script defer src="js/screens/onboarding.js?v=4.2.0"></script>
-<script defer src="js/booking/time-picker.js?v=4.2.0"></script>
-<script defer src="js/booking/booking.js?v=4.2.0"></script>
-<script defer src="js/core/bookings-api.js?v=4.2.0"></script>
-<script defer src="js/screens/my-bookings.js?v=4.2.0"></script>
-<script defer src="js/screens/rewards.js?v=4.2.0"></script>
-<script defer src="js/screens/profile.js?v=4.2.0"></script>
-<script defer src="js/screens/achievements.js?v=4.2.0"></script>
-<script defer src="js/screens/promo.js?v=4.2.0"></script>
-<script defer src="js/screens/settings.js?v=4.2.0"></script>
-<script defer src="js/extras/snake.js?v=4.2.0"></script>
-<script defer src="js/extras/fx.js?v=4.2.0"></script>
-<script defer src="js/admin/offline.js?v=4.2.0"></script>
-<script defer src="js/admin/admin.js?v=4.2.0"></script>
-<script defer src="js/extras/hints.js?v=4.2.0"></script>
-<script defer src="js/core/live.js?v=4.2.0"></script>
-<script defer src="js/main.js?v=4.2.0"></script>
+<script defer src="js/core/guard.js?v=4.3.0"></script>
+<script defer src="js/core/i18n.js?v=4.3.0"></script>
+<script defer src="js/core/config.js?v=4.3.0"></script>
+<script defer src="js/core/clock.js?v=4.3.0"></script>
+<script defer src="js/core/api.js?v=4.3.0"></script>
+<script defer src="js/core/state.js?v=4.3.0"></script>
+<script defer src="js/core/diag.js?v=4.3.0"></script>
+<script defer src="js/core/ui.js?v=4.3.0"></script>
+<script defer src="js/screens/home.js?v=4.3.0"></script>
+<script defer src="js/screens/onboarding.js?v=4.3.0"></script>
+<script defer src="js/booking/time-picker.js?v=4.3.0"></script>
+<script defer src="js/booking/booking.js?v=4.3.0"></script>
+<script defer src="js/core/bookings-api.js?v=4.3.0"></script>
+<script defer src="js/screens/my-bookings.js?v=4.3.0"></script>
+<script defer src="js/screens/rewards.js?v=4.3.0"></script>
+<script defer src="js/screens/profile.js?v=4.3.0"></script>
+<script defer src="js/screens/achievements.js?v=4.3.0"></script>
+<script defer src="js/screens/promo.js?v=4.3.0"></script>
+<script defer src="js/screens/settings.js?v=4.3.0"></script>
+<script defer src="js/extras/snake.js?v=4.3.0"></script>
+<script defer src="js/extras/fx.js?v=4.3.0"></script>
+<script defer src="js/admin/offline.js?v=4.3.0"></script>
+<script defer src="js/admin/admin.js?v=4.3.0"></script>
+<script defer src="js/extras/hints.js?v=4.3.0"></script>
+<script defer src="js/core/live.js?v=4.3.0"></script>
+<script defer src="js/main.js?v=4.3.0"></script>
 </body>
 </html>

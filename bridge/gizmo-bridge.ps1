@@ -1,9 +1,14 @@
 ﻿<#
   Toxic Skill — мост Gizmo → приложение брони
 
-  Раз в N секунд спрашивает у сервера Gizmo, какие ПК заняты и сколько
-  времени осталось у игрока, и отправляет это в Apps Script (gizmoSync).
-  В приложении клиенты видят «Занят до 19:45 · ещё 1 ч 12 мин».
+  Раз в N секунд спрашивает у сервера Gizmo, какие ПК заняты, сколько
+  времени осталось у игрока и давно ли он играет, и отправляет это в Apps Script (gizmoSync).
+  В приложении клиенты видят «Занят до 19:45 · ещё 1 ч 12 мин» и бронируют ПК с 19:45.
+
+  Адреса API — по официальной документации Gizmo (http://АДРЕС_GIZMO/doc/index.html):
+    ПК — /api/v2.0/hosts, сессии — /api/usersessions/activeinfo,
+    остаток — /api/v2.0/users/{id}/userusagetime (usableMinutes, в минутах),
+    запасной — /api/users/{id}/balance (availableTime, в секундах).
 
   Запуск (PowerShell на ПК с сервером Gizmo):
     powershell -ExecutionPolicy Bypass -File .\gizmo-bridge.ps1 -Probe   # проверка API, пишет probe.txt
@@ -64,11 +69,12 @@ $auth = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${G
 $gzHeaders = @{ Authorization = $auth; Accept = 'application/json' }
 
 # Адреса API отличаются в разных версиях Gizmo — пробуем по очереди и запоминаем рабочий
-$HostEndpoints = @('/api/v2.0/hosts?Pagination.Limit=1000', '/api/hostcomputer', '/api/host', '/api/hosts')
-$SessionEndpoints = @('/api/v2.0/usersessions/activeinfo', '/api/usersessions/activeinfo', '/api/v2.0/usersessions/active',
-  '/api/usersessions/active', '/api/sessions/activeinfo', '/api/sessions/active')
-$BalanceEndpoints = @('/api/v2.0/users/{id}/balance', '/api/users/{id}/balance', '/api/v2.0/users/{id}/balance/current')
-foreach ($pair in @(@('hostsEndpoint', 'HostEndpoints'), @('sessionsEndpoint', 'SessionEndpoints'), @('balanceEndpoint', 'BalanceEndpoints'))) {
+$HostEndpoints = @('/api/v2.0/hosts?Pagination.Limit=1000', '/api/hostcomputers', '/api/hosts', '/api/hostcomputer', '/api/host')
+$SessionEndpoints = @('/api/usersessions/activeinfo', '/api/usersessions/active', '/api/v2.0/usersessions/activeinfo', '/api/sessions/activeinfo', '/api/sessions/active')
+# Остаток времени игрока: сначала точные минуты (usableMinutes), потом баланс (availableTime — секунды)
+$UsageEndpoints = @('/api/v2.0/users/{id}/userusagetime')
+$BalanceEndpoints = @('/api/users/{id}/balance', '/api/v2.0/users/{id}/balance')
+foreach ($pair in @(@('hostsEndpoint', 'HostEndpoints'), @('sessionsEndpoint', 'SessionEndpoints'), @('usageEndpoint', 'UsageEndpoints'), @('balanceEndpoint', 'BalanceEndpoints'))) {
   $v = [string](CfgVal $pair[0] '')
   if ($v) { Set-Variable -Name $pair[1] -Value @($v) }
 }
@@ -141,8 +147,11 @@ function Get-Label([string]$name, $number) {
   return $null
 }
 
-# Время из Gizmo → минуты. Бывает числом (секунды или минуты) или строкой «01:23:45»
-function To-Minutes($v) {
+# Время из Gizmo → минуты. Бывает числом или строкой «01:23:45».
+# $unit — в чём число: 'minutes' (usableMinutes), 'seconds' (availableTime в балансе), 'auto' — догадка.
+# Настройка timeUnit в bridge.config.json (seconds/minutes/hours) перекрывает баланс и догадку.
+# Раньше догадка считала всё меньше 1440 минутами: 10 минут баланса (600 секунд) превращались в 10 часов.
+function To-Minutes($v, [string]$unit = 'auto') {
   if ($null -eq $v) { return $null }
   $s = "$v"
   if ($s -match '^\-?(\d+\.)?\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?$') {
@@ -150,12 +159,47 @@ function To-Minutes($v) {
   }
   $d = 0.0
   if (-not [double]::TryParse($s, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $null }
-  switch ($TimeUnit) {
+  if ($unit -ne 'minutes' -and $TimeUnit -ne 'auto') { $unit = $TimeUnit }
+  switch ($unit) {
     'seconds' { return [int][Math]::Floor($d / 60) }
     'minutes' { return [int][Math]::Floor($d) }
     'hours'   { return [int][Math]::Floor($d * 60) }
     default   { if ($d -ge 1440) { return [int][Math]::Floor($d / 60) } else { return [int][Math]::Floor($d) } }
   }
+}
+# Сколько минут осталось у игрока по Gizmo (null — не знаем)
+function Get-UserLeft($uid) {
+  if ($null -eq $uid -or "$uid" -eq '0') { return $null }
+  # 1) usableMinutes: по уровню на каждый источник времени (пакеты, фикс. время, депозит) — складываем
+  try {
+    $levels = @(Items (Gizmo-First 'usage' $UsageEndpoints "$uid"))
+    $sum = $null
+    foreach ($l in $levels) {
+      $m = F $l @('usableMinutes', 'UsableMinutes')
+      if ($null -ne $m) { $sum = [int]$sum + [int][Math]::Floor([double]$m) }
+    }
+    if ($null -ne $sum) { return $sum }
+  } catch {}
+  # 2) баланс: availableTime — секунды
+  try {
+    $b = Gizmo-First 'balance' $BalanceEndpoints "$uid"
+    $v = F $b @('availableTime', 'result.availableTime', 'AvailableTime', 'result.AvailableTime')
+    if ($null -ne $v) { return To-Minutes $v 'seconds' }
+    $v = F $b @('timeLeft', 'result.timeLeft')
+    if ($null -ne $v) { return To-Minutes $v }
+  } catch {}
+  return $null
+}
+# Сколько минут игрок уже за ПК: по времени входа (lastLogin / createdTime) — null, если неизвестно
+function Get-Played($sess) {
+  $t = F $sess @('lastLogin', 'LastLogin', 'createdTime', 'CreatedTime', 'startTime', 'StartTime')
+  if ($null -eq $t) { return $null }
+  try {
+    $dt = if ($t -is [datetime]) { $t } else { [datetime]::Parse("$t", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeLocal) }
+    $m = [int][Math]::Floor(((Get-Date) - $dt.ToLocalTime()).TotalMinutes)
+    if ($m -ge 0 -and $m -le 2880) { return $m }
+  } catch {}
+  return $null
 }
 
 $TimeFields = @('timeLeft', 'remainingTime', 'availableTime', 'AvailableTimeLeft', 'balance.availableTime', 'UserBalance.AvailableTime')
@@ -184,6 +228,9 @@ function Collect {
     $hid = F $s @('hostId', 'host.id', 'hostComputerId')
     $state = F $s @('state', 'sessionState')
     if ($null -ne $state -and "$state" -match '^(ended|closed|finished|completed)$') { continue }
+    # Числовое состояние Gizmo — набор флагов, 2 = «завершена»
+    $sn = 0
+    if ($null -ne $state -and [int]::TryParse("$state", [ref]$sn) -and ($sn -band 2)) { continue }
     if ($null -ne $hid) { $byHost["$hid"] = $s }
   }
 
@@ -210,28 +257,32 @@ function Collect {
       if (($null -ne $uid -and "$uid" -ne '0') -or ($null -ne $free -and "$free" -eq 'False') -or ("$inUse" -eq 'True')) { $busy = $true }
     }
 
-    $left = $null
+    $left = $null; $played = $null
     if ($busy) {
       $left = To-Minutes (F $sess @($TimeFields))
       if ($null -eq $left) {
         $uid = F $sess @('userId', 'user.id')
         if ($null -eq $uid) { $uid = F $h @('userId', 'currentUserId', 'loggedInUserId') }
-        if ($null -ne $uid) {
-          try { $left = To-Minutes (F (Gizmo-First 'balance' $BalanceEndpoints "$uid") @('availableTime', 'result.availableTime', 'timeLeft')) } catch {}
-        }
+        $left = Get-UserLeft $uid
       }
-      # 0 или неправдоподобно много (постоплата, большой пакет) — «не знаем», приложение возьмёт оценку
+      # 0 или неправдоподобно много (постоплата, большой депозит) — «не знаем», приложение не выдумывает
       if ($null -ne $left -and ($left -le 0 -or $left -gt $MaxLeftMin)) { $left = $null }
+      if ($sess) { $played = Get-Played $sess }
     }
-    $out += [pscustomobject]@{ pc = $label; busy = $busy; left = $left; gizmo = $name }
+    $out += [pscustomobject]@{ pc = $label; busy = $busy; left = $left; played = $played; gizmo = $name }
   }
   return [pscustomobject]@{ hosts = $out; unmapped = $unmapped; sessErr = $sessErr }
 }
 
 function Send-Status($hosts) {
   if (-not $AppUrl) { throw 'Не указан appUrl в bridge.config.json' }
+  # ПК:занят[:минут осталось[:минут уже играет]] — например ST-01:1:45:30, остаток неизвестен: ST-02:1::30
   $parts = foreach ($h in $hosts) {
-    if ($h.busy) { if ($null -ne $h.left) { "$($h.pc):1:$($h.left)" } else { "$($h.pc):1" } } else { "$($h.pc):0" }
+    if (-not $h.busy) { "$($h.pc):0"; continue }
+    $p = "$($h.pc):1"
+    if ($null -ne $h.left -or $null -ne $h.played) { $p += ':' + $(if ($null -ne $h.left) { $h.left } else { '' }) }
+    if ($null -ne $h.played) { $p += ":$($h.played)" }
+    $p
   }
   $busyN = @($hosts | Where-Object { $_.busy }).Count
   $q = 'action=gizmoSync&hosts=' + [uri]::EscapeDataString(($parts -join ',')) +
@@ -270,7 +321,7 @@ function Run-Probe {
     }
   }
   if ($firstUser) {
-    foreach ($p in $BalanceEndpoints) {
+    foreach ($p in ($UsageEndpoints + $BalanceEndpoints)) {
       $u = $p.Replace('{id}', "$firstUser")
       try { $rep.Add("OK   $u   " + (Mask (Gizmo-Get $u))) } catch { $rep.Add("--   $u   $($_.Exception.Message)") }
     }
@@ -279,10 +330,11 @@ function Run-Probe {
   try {
     $c = Collect
     $rep.Add('Что уйдёт в приложение:')
-    foreach ($h in $c.hosts) { $rep.Add(('  {0,-7} ← {1,-12} {2}{3}' -f $h.pc, $h.gizmo, $(if ($h.busy) { 'занят' } else { 'свободен' }), $(if ($null -ne $h.left) { " · осталось $($h.left) мин" } else { '' }))) }
+    foreach ($h in $c.hosts) { $rep.Add(('  {0,-7} ← {1,-12} {2}{3}{4}' -f $h.pc, $h.gizmo, $(if ($h.busy) { 'занят' } else { 'свободен' }), $(if ($null -ne $h.left) { " · осталось $($h.left) мин" } elseif ($h.busy) { ' · остаток неизвестен' } else { '' }), $(if ($null -ne $h.played) { " · играет $($h.played) мин" } else { '' }))) }
     if ($c.unmapped.Count) { $rep.Add('Не сопоставлены (добавь в hostMap): ' + ($c.unmapped -join ', ')) }
     if ($c.sessErr) { $rep.Add('Сессии не получены: ' + $c.sessErr) }
     $rep.Add('Сверь «осталось» с временем в Gizmo. Отличается в 60 раз — поставь в настройках timeUnit: "seconds" или "minutes".')
+    $rep.Add('«остаток неизвестен» — у игрока постоплата или в Gizmo нет баланса: админ может указать время в приложении (Зал сейчас → ⏱).')
   } catch { $rep.Add('Сбор статуса не удался: ' + (Explain $_)) }
   $rep | ForEach-Object { Write-Host $_ }
   $f = Join-Path $here 'probe.txt'
@@ -311,7 +363,7 @@ while ($true) {
     $withLeft = @($c.hosts | Where-Object { $null -ne $_.left }).Count
     if ($Once -or $fails -gt 0) { Log "✅ отправлено: $($c.hosts.Count) ПК, занято $busyN (с остатком времени: $withLeft)" }
     if ($Once) {
-      foreach ($h in $c.hosts) { Write-Host ('  {0,-7} {1}{2}' -f $h.pc, $(if ($h.busy) { 'занят' } else { 'свободен' }), $(if ($null -ne $h.left) { " · ещё $($h.left) мин" } else { '' })) }
+      foreach ($h in $c.hosts) { Write-Host ('  {0,-7} {1}{2}{3}' -f $h.pc, $(if ($h.busy) { 'занят' } else { 'свободен' }), $(if ($null -ne $h.left) { " · ещё $($h.left) мин" } else { '' }), $(if ($null -ne $h.played) { " · играет $($h.played) мин" } else { '' })) }
       break
     }
     $fails = 0
