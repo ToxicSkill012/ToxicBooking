@@ -117,13 +117,16 @@ function pcSession(pcLabel,bookings){
   return {end:null,left:null,src:'',sinceMin:gizmoSinceMin(pcLabel)}
 }
 // Занятые отрезки для выбора времени: брони + идущая сессия в клубе
-// (конец неизвестен — ПК занят ещё GIZMO_UNKNOWN_BUSY_MIN минут, как на сервере)
+// Конец сессии неизвестен — сервер считает ПК занятым ещё GIZMO_UNKNOWN_BUSY_MIN минут от «сейчас».
+// Здесь окно чуть длиннее и кратно 5 минутам: время «бронь с 17:30», которое видит клиент,
+// сервер примет, даже если клиент оформит бронь через несколько минут.
 const GIZMO_UNKNOWN_BUSY_MIN=60
+const unknownSessEnd=now=>Math.ceil((now+GIZMO_UNKNOWN_BUSY_MIN+5)/5)*5
 function pcBusyRanges(pcLabel,bookings){
   const out=pcRanges(pcLabel,bookings),s=pcSession(pcLabel,bookings)
   if(s){
     const now=clubNow().abs
-    out.push([now-1,s.end!==null?s.end:now+GIZMO_UNKNOWN_BUSY_MIN])
+    out.push([now-1,s.end!==null?s.end:unknownSessEnd(now)])
     out.sort((a,b)=>a[0]-b[0])
   }
   return out
