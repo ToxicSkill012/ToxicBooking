@@ -120,8 +120,8 @@ async function syncMyBookings(force=false){
     const k=b.grp||String(b.id),rows=groups.get(k)
     if(!rows)return b
     groups.delete(k)
-    const st=statusOf(rows)
-    if(st!==b.status){changed=true;return {...b,status:st}}
+    const st=statusOf(rows),guest=rows.every(r=>r.guest)
+    if(st!==b.status||!!b.guest!==guest){changed=true;return {...b,status:st,guest}}
     return b
   })
   // Брони, сделанные с другого устройства
@@ -130,7 +130,7 @@ async function syncMyBookings(force=false){
     const r=bookingAbsRange(s.date,s.start,s.end)||[0,60]
     const pcs=rows.map(x=>x.pc)
     D.user.bks.push({id:s.id,ids:rows.map(x=>x.id),grp:s.group||'',zone,pc:pcs.join(', '),pcs,team:pcs.length,pkg:s.pkg,date:s.date,start:s.start,end:s.end,
-      h:Math.round((r[1]-r[0])/6)/10,price:rows.reduce((a,x)=>a+(parseFloat(x.price)||0),0),status:statusOf(rows)})
+      h:Math.round((r[1]-r[0])/6)/10,price:rows.reduce((a,x)=>a+(parseFloat(x.price)||0),0),status:statusOf(rows),guest:rows.every(x=>x.guest)})
     changed=true
   })
   if(changed){

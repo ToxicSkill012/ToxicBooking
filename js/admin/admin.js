@@ -525,7 +525,7 @@ async function renderAdminDash(){
   // Загрузка по зонам (сегодня) — кол-во броней по зонам / всего ПК
   const zoneCount={std:0,vip:0,bootcamp:0}
   todayBks.forEach(b=>{const z=b.zone==='bc'?'bootcamp':b.zone;if(zoneCount[z]!==undefined)zoneCount[z]++})
-  const zoneTotal={std:13,vip:3,bootcamp:5}
+  const zoneTotal={std:ZONES.std.pcCount,vip:ZONES.vip.pcCount,bootcamp:ZONES.bc.pcCount}
   // Популярные часы (по всем валидным)
   const hourHist={}
   valid.forEach(b=>{const h=parseInt(String(b.start).split(':')[0]);if(!isNaN(h))hourHist[h]=(hourHist[h]||0)+1})

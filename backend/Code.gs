@@ -1,6 +1,11 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║     TOXICSKILL — Google Apps Script Backend v7.4             ║
+// ║     TOXICSKILL — Google Apps Script Backend v7.5             ║
 // ║                                                              ║
+// ║  v7.5: ST-15 (в Standard 14 ПК: 01–13 и 15); брони без      ║
+// ║        аккаунта Telegram                                     ║
+// ║        видны клиенту и на другом телефоне (по его номеру);   ║
+// ║        подпись Telegram — до 7 дней; мост замолчал — ПК с    ║
+// ║        известным концом сессии ещё час считаются занятыми    ║
 // ║  v7.4: бронь от остатка сессии на ПК (Gizmo или время от     ║
 // ║        админа), «свободен с …» при конфликте, предупреждение ║
 // ║        админу, если ПК занят перед бронью; лимит запросов    ║
@@ -58,7 +63,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.4'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.5'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -233,7 +238,9 @@ function checkInitData_(raw) {
       if (itemsDec[j].indexOf('auth_date=') === 0) authDate = parseInt(itemsDec[j].substring(10)) || 0
       if (itemsDec[j].indexOf('user=') === 0) userJson = itemsDec[j].substring(5)
     }
-    if (!authDate || (Date.now()/1000 - authDate) > 172800) return { ok:false, why:'stale' }
+    // Приложение в Telegram можно свернуть и вернуться через несколько дней — подпись та же.
+    // Раньше через 48 ч клиент становился «гостем», и его брони сохранялись без владельца
+    if (!authDate || (Date.now()/1000 - authDate) > 7 * 86400) return { ok:false, why:'stale' }
     var u = JSON.parse(userJson || '{}')
     if (!u.id) return { ok:false, why:'no_user' }
     return { ok:true, user:u }
@@ -1037,10 +1044,16 @@ function getMyBookings(tgId) {
   if (!tgId) return { ok:false, error:'Нужен Telegram', bookings:[] }
   try {
     var cutoff = dayNum_(Utilities.formatDate(new Date(), CLUB_TZ, 'dd.MM.yyyy')) - 60
-    var mine = readBookings_(true).filter(function(b) {
-      return b.tgId === String(tgId) && dayNum_(b.date) >= cutoff
+    var all = readBookings_(true).filter(function(b) { return dayNum_(b.date) >= cutoff })
+    // Брони без владельца (Telegram не передал аккаунт — приложение открыли кнопкой клавиатуры,
+    // или бронь по телефону от админа) показываем тому, чей это телефон: по его собственным броням
+    var digits = function(s) { return String(s || '').replace(/\D/g, '') }
+    var phones = {}
+    all.forEach(function(b) { if (b.tgId === String(tgId)) { var d = digits(b.phone); if (d.length === 12) phones[d] = 1 } })
+    var mine = all.filter(function(b) {
+      return b.tgId === String(tgId) || (!b.tgId && phones[digits(b.phone)])
     }).map(function(b) {
-      return { id:b.id, pc:b.pc, zone:b.zone, date:b.date, start:b.start, end:b.end, pkg:b.pkg, price:b.price, status:b.status, group:b.group }
+      return { id:b.id, pc:b.pc, zone:b.zone, date:b.date, start:b.start, end:b.end, pkg:b.pkg, price:b.price, status:b.status, group:b.group, guest: !b.tgId }
     })
     return { ok:true, bookings:mine }
   } catch(e) { return { ok:false, bookings:[] } }
@@ -1056,7 +1069,8 @@ function isOfflineSrc(b){ return b && b.source === 'offline' }
 // (то же самое — в js/core/config.js; меняешь цены — поменяй в обоих местах)
 // ═══════════════════════════════════════════════
 const TARIFF = {
-  std: { hour:6, pre:'ST',  pcs:13, pkgs:[
+  // В Standard 14 ПК: номера 01–13 и 15 (ST-14 нет) — номера ПК перечислены в nums
+  std: { hour:6, pre:'ST',  pcs:14, nums:[1,2,3,4,5,6,7,8,9,10,11,12,13,15], pkgs:[
     { id:'s0', n:'1 час',   h:1,  p:6  },
     { id:'s1', n:'3 часа',  h:3,  p:15 },
     { id:'s2', n:'5 часов', h:5,  p:21 },
@@ -1096,7 +1110,10 @@ function zoneKey_(z) {
 function zoneOfPc_(pc) {
   var m = /^(ST|VIP|BC)-(\d{2})$/.exec(String(pc||'').trim().toUpperCase())
   if (!m) return ''
-  for (var k in TARIFF) if (TARIFF[k].pre === m[1]) { var n = +m[2]; return n >= 1 && n <= TARIFF[k].pcs ? k : '' }
+  for (var k in TARIFF) if (TARIFF[k].pre === m[1]) {
+    var n = +m[2], t = TARIFF[k]
+    return (t.nums ? t.nums.indexOf(n) >= 0 : n >= 1 && n <= t.pcs) ? k : ''
+  }
   return ''
 }
 // Цена «своего времени»: каждые начатые 30 мин по часовому тарифу.
@@ -1518,8 +1535,11 @@ function sessOvrSave_(o) { try { PROPS.setProperty('SESS_OVR', JSON.stringify(o)
 function hallNow_(curEnd) {
   var nowMs = Date.now(), nowAbs = nowAbsMin_(), live = {}, gz = {}, st = null
   try { st = gizmoLoad_() } catch(e) {}
-  var fresh = !!(st && st.updatedAt) && (nowMs - new Date(st.updatedAt).getTime()) / 60000 <= GIZMO_STALE_MIN
-  if (fresh) st.hosts.forEach(function(h) { gz[String(h.pc).trim().toUpperCase()] = h })
+  var age = st && st.updatedAt ? (nowMs - new Date(st.updatedAt).getTime()) / 60000 : 1e9
+  var fresh = age <= GIZMO_STALE_MIN
+  // Мост ненадолго замолчал (до часа): ПК, у которых известен конец сессии, по-прежнему заняты до него —
+  // раньше через 5 минут тишины весь зал в приложении становился «свободным»
+  if (fresh || age <= 60) st.hosts.forEach(function(h) { if (fresh || (h.busy && h.until)) gz[String(h.pc).trim().toUpperCase()] = h })
   // Конец сессии в минутах клуба — из точного времени окончания (как в приложении), а не «сейчас + остаток»:
   // иначе секунды внутри минуты давали расхождение на минуту, и бронь «с 16:06» сервер отклонял
   var offMin = nowAbs - Math.floor(nowMs / 60000)

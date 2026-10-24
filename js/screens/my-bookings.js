@@ -59,7 +59,7 @@ function bkCard(b,past=false){
       <div class="bki-z">${z.emoji} ${z.name} · ${b.pkg||''} · <b style="color:${past?'var(--t2)':z.color}">${b.price} BYN</b></div>
       <div class="bki-m"><span>📅 ${b.date}</span><span>🕐 ${b.start}–${b.end}</span><span>⏱ ${fmtDur(Math.round((b.h||1)*60))}</span></div>
       ${past?'':`<div class="bki-timer${t.soon?' soon':''}"><span class="bki-tt">${t.txt}</span><div class="bki-bar"><i style="width:${t.pct}%;background:${z.color}"></i></div></div>`}
-      ${!past&&!t.live?`<button class="BTN danger" style="margin-top:13px;width:auto;padding:9px 18px;font-size:13px" onclick="cancelBk('${b.id}')">${team?(D.lang!=='ru'?'Cancel all PCs':'Отменить всю бронь'):_('cancelBk')}</button>`:''}
+      ${!past&&!t.live&&!b.guest?`<button class="BTN danger" style="margin-top:13px;width:auto;padding:9px 18px;font-size:13px" onclick="cancelBk('${b.id}')">${team?(D.lang!=='ru'?'Cancel all PCs':'Отменить всю бронь'):_('cancelBk')}</button>`:''}
     </div>
   </div>`
 }
