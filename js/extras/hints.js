@@ -119,8 +119,8 @@ function endHints(completed){
 function showGuide(){startHints(true)}
 
 // ═══ ЧТО НОВОГО ═══
-const WN_VERSION='v4.3'
-const BUILD_ID='B433'
+const WN_VERSION='v4.4'
+const BUILD_ID='B440'
 let _wnShown=false
 function checkWhatsNew(){
   if(_wnShown)return

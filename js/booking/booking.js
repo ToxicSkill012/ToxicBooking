@@ -91,8 +91,9 @@ function pcSlot(lbl,map,bookings,s,e){
       o.until=sess.end
       o.sub='🎮 '+T(`до ${fmtAbs(sess.end)} · ещё ${fmtDur(sess.end-nowAbs)}`,`till ${fmtAbs(sess.end)} · ${fmtDur(sess.end-nowAbs)} left`)
     }else if(blk[0]<=nowAbs){
+      // За ПК играют (o.live) — «занят»; идёт бронь, а в зале за ним никого — «бронь»: место держат за гостем
       o.until=blk[1]
-      o.sub=T('занят до ','busy till ')+fmtAbs(blk[1])
+      o.sub=(o.live?T('занят до ','busy till '):T('бронь до ','booked till '))+fmtAbs(blk[1])
     }else{
       o.sub=T('бронь ','booked ')+minToHM(blk[0])+'–'+minToHM(blk[1])
     }

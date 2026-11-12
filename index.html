@@ -21,8 +21,8 @@
 <meta name="referrer" content="no-referrer"/>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=4.3.3">
-<link rel="stylesheet" href="css/glass.css?v=4.3.3">
+<link rel="stylesheet" href="css/app.css?v=4.4.0">
+<link rel="stylesheet" href="css/glass.css?v=4.4.0">
 <script>
 // До загрузки стилей: «лёгкий режим» и класс мощности устройства — без вспышки тяжёлых эффектов
 (function(){var h=document.documentElement;try{localStorage.removeItem('ts_lowfx');var f=localStorage.getItem('ts_fx'),u=+localStorage.getItem('ts_lowfx_until')||0;
@@ -207,45 +207,34 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
   </div>
 </div>
 
-<!-- ════ ONBOARDING ════ -->
-<div id="ob" class="sc on" style="z-index:20;background:var(--bg)">
-  <div class="ob-grid"></div><div class="ob-g1"></div><div class="ob-g2"></div><div class="ob-g3"></div>
-  <canvas id="ob-particles" style="position:absolute;inset:0;pointer-events:none;z-index:0"></canvas>
-  <div style="flex:1"></div>
-  <div class="ob-body">
-    <div class="ob-eye fu" style="animation-delay:.02s"><div class="LD"></div><span>БРЕСТ · CYBER HOUSE · 24/7</span></div>
-    <div class="ob-logo fu" style="animation-delay:.06s">TOXIC<em>SKILL</em></div>
-
-    <!-- Слайды с преимуществами -->
-    <div class="ob-slides fu" style="animation-delay:.1s" id="ob-slides">
-      <div class="ob-slide active" data-slide="0">
-        <div class="ob-slide-icon">⚡</div>
-        <div class="ob-slide-title">Бронируй за 10 секунд</div>
-        <div class="ob-slide-desc">Выбери зону, ПК, время — готово. Никаких очередей и звонков. Твоё место ждёт.</div>
-      </div>
-      <div class="ob-slide" data-slide="1">
-        <div class="ob-slide-icon">🎮</div>
-        <div class="ob-slide-title">3 зоны · 22 ПК · до RTX 5060Ti</div>
-        <div class="ob-slide-desc">Standard, VIP, Bootcamp — от 6 BYN/час. 280Hz мониторы, топовая периферия, 24/7.</div>
-      </div>
-      <div class="ob-slide" data-slide="2">
-        <div class="ob-slide-icon">⭐</div>
-        <div class="ob-slide-title">Копи баллы — играй бесплатно</div>
-        <div class="ob-slide-desc">За каждую бронь получаешь ⭐ баллы. 40 баллов = 1 час бесплатно. Чем больше играешь — тем больше бонусов.</div>
-      </div>
+<!-- ════ ПЕРВЫЙ ЭКРАН ════ -->
+<!-- Живой зал вместо слайдов: с порога видно, сколько ПК свободно. Содержимое обновляет renderOb() -->
+<div id="ob" class="sc on" style="z-index:20">
+  <div class="ob-bg" aria-hidden="true"><i class="ob-b1"></i><i class="ob-b2"></i><i class="ob-b3"></i></div>
+  <div class="ob-grid" aria-hidden="true"></div>
+  <div class="ob-in">
+    <div class="ob-top fu">
+      <div class="LOGO">TOXIC<em>SKILL</em></div>
+      <div class="ob-geo"><span class="LD"></span><span id="ob-geo">Брест · 24/7</span></div>
     </div>
 
-    <div class="ob-dots-row fu" style="animation-delay:.12s" id="ob-dots-row">
-      <div class="ob-dot on" onclick="obSlide(0)"></div>
-      <div class="ob-dot" onclick="obSlide(1)"></div>
-      <div class="ob-dot" onclick="obSlide(2)"></div>
+    <div class="ob-hero">
+      <div class="ob-hi fu" id="ob-hi" style="animation-delay:.04s" hidden></div>
+      <h1 class="ob-h fu" id="ob-h" style="animation-delay:.07s">Твой ПК<br><em>уже ждёт</em></h1>
+      <p class="ob-p fu" id="ob-p" style="animation-delay:.1s">Выбери время и место — бронь за 10 секунд, без звонков и очередей.</p>
     </div>
 
-    <button class="BTN fu glow-border" id="ob-btn" onclick="doLogin(this)" style="animation-delay:.16s">
-      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span data-i="loginBtn">Войти через Telegram</span>
-    </button>
-    <p class="ob-note fu" style="animation-delay:.19s;font-size:11px;color:var(--lime);font-weight:500" data-i="loginNote">📱 Через Telegram — баллы начисляются автоматически</p>
+    <div class="ob-hall fu" style="animation-delay:.14s">
+      <div class="ob-hall-h"><span id="ob-hall-t">Зал сейчас</span><b id="ob-free"></b></div>
+      <div id="ob-zones"></div>
+    </div>
+
+    <div class="ob-feats fu" style="animation-delay:.18s" id="ob-feats"></div>
+
+    <div class="ob-cta fu" style="animation-delay:.22s">
+      <button class="BTN" id="ob-btn" onclick="doLogin(this)"></button>
+      <p class="ob-note" id="ob-note"></p>
+    </div>
   </div>
 </div>
 
@@ -414,72 +403,8 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
       </div>
       <div id="promo-res" style="display:none;margin-top:10px"></div>
     </div>
-    <!-- bonus system -->
-    <div id="bonus-pts-blk" style="margin:0 16px 14px;display:none">
-      <!-- Карта баланса -->
-      <div style="border-radius:var(--RR);overflow:hidden;background:linear-gradient(152deg,#33270a 0%,#1a1526 45%,#100e1a 100%);border:1px solid rgba(255,202,80,.3);position:relative;box-shadow:0 14px 42px rgba(0,0,0,.5),0 0 26px rgba(255,202,80,.07),inset 0 1px 0 rgba(255,255,255,.07)">
-        <div style="position:absolute;top:-50px;right:-50px;width:200px;height:200px;background:radial-gradient(circle,rgba(255,202,80,.18),transparent 68%);pointer-events:none"></div>
-        <div style="position:absolute;top:0;left:22px;right:22px;height:1.5px;background:linear-gradient(90deg,transparent,rgba(255,202,80,.7),transparent)"></div>
-
-        <div style="padding:20px 20px 18px;position:relative;z-index:1">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
-            <div>
-              <div style="font-family:var(--m);font-size:9px;font-weight:700;color:var(--gold);letter-spacing:2.4px;opacity:.85">МОЙ БАЛАНС</div>
-              <div style="display:flex;align-items:baseline;gap:9px;margin-top:6px">
-                <div id="pts-val" style="font-family:var(--m);font-size:48px;font-weight:700;color:var(--gold);line-height:.85;text-shadow:0 0 26px rgba(255,202,80,.45)">0</div>
-                <div style="font-size:21px">⭐</div>
-              </div>
-            </div>
-            <button onclick="openM('bonus-info-m')" style="flex-shrink:0;padding:8px 13px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,202,80,.24);color:var(--gold);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Как это работает</button>
-          </div>
-
-          <div style="margin-top:18px">
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:7px">
-              <span id="pts-next-label" style="color:var(--t2)">До первой награды</span>
-              <span id="pts-next-val" style="color:var(--gold);font-weight:700;font-family:var(--m)"></span>
-            </div>
-            <div id="pts-progress-bar" style="height:9px;background:rgba(0,0,0,.45);border-radius:6px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)">
-              <div id="pts-bar-fill" style="height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--lime));border-radius:6px;transition:width .7s var(--e);box-shadow:0 0 14px rgba(255,202,80,.55)"></div>
-            </div>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,202,80,.12);position:relative;z-index:1">
-          <div style="padding:12px 4px;background:rgba(12,10,20,.82);text-align:center"><div style="font-family:var(--m);font-size:14px;font-weight:700;color:var(--gold)">+1</div><div style="font-size:8px;color:var(--t2);margin-top:2px">за час</div></div>
-          <div style="padding:12px 4px;background:rgba(12,10,20,.82);text-align:center"><div style="font-family:var(--m);font-size:14px;font-weight:700;color:var(--gold)">+2</div><div style="font-size:8px;color:var(--t2);margin-top:2px">VIP/BC</div></div>
-          <div style="padding:12px 4px;background:rgba(12,10,20,.82);text-align:center"><div style="font-family:var(--m);font-size:14px;font-weight:700;color:var(--lime)">+1</div><div style="font-size:8px;color:var(--t2);margin-top:2px">в app</div></div>
-          <div style="padding:12px 4px;background:rgba(12,10,20,.82);text-align:center"><div style="font-family:var(--m);font-size:14px;font-weight:700;color:#ff6bb4">+50</div><div style="font-size:8px;color:var(--t2);margin-top:2px">на ДР</div></div>
-        </div>
-      </div>
-
-      <!-- Награды -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 2px 10px">
-        <div style="font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:2.2px">ОБМЕНЯТЬ НА ЧАСЫ</div>
-        <div style="font-size:9.5px;color:var(--t3)">жми на награду</div>
-      </div>
-      <div id="rewards-grid" style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="redeemRewardUI('R1','1 час Standard',40)" class="rw-btn" data-cost="40">
-          <div class="rw-cost" style="color:var(--lime)">40 ⭐</div>
-          <div class="rw-mid"><div class="rw-name">1 час Standard</div><div class="rw-sub">~7 часов игры</div></div>
-          <div class="rw-go">›</div>
-        </button>
-        <button onclick="redeemRewardUI('R2','3 часа Standard',100)" class="rw-btn" data-cost="100">
-          <div class="rw-cost" style="color:var(--gold)">100 ⭐</div>
-          <div class="rw-mid"><div class="rw-name">3 часа Standard</div><div class="rw-sub">≈17 визитов</div></div>
-          <div class="rw-go">›</div>
-        </button>
-        <button onclick="redeemRewardUI('R3','5 часов Standard',170)" class="rw-btn" data-cost="170">
-          <div class="rw-cost" style="color:var(--blue)">170 ⭐</div>
-          <div class="rw-mid"><div class="rw-name">5 часов Standard</div><div class="rw-sub">≈28 визитов</div></div>
-          <div class="rw-go">›</div>
-        </button>
-        <button onclick="redeemRewardUI('R4','5 часов VIP/Bootcamp',300)" class="rw-btn top" data-cost="300">
-          <div class="rw-cost" style="color:var(--gold)">300 ⭐</div>
-          <div class="rw-mid"><div class="rw-name" style="color:var(--gold)">5 часов VIP / Bootcamp 👑</div><div class="rw-sub">топ-награда клуба</div></div>
-          <div class="rw-go">›</div>
-        </button>
-      </div>
-    </div>
+    <!-- Баллы: баланс, шкала наград, ваучеры и обмен — рисует renderPoints() -->
+    <div id="bonus-pts-blk" style="margin:0 16px 14px;display:none"></div>
     <!-- Статистика -->
     <div id="prof-empty" style="margin:0 16px 14px;display:none">
       <div style="padding:24px 20px;border-radius:var(--RR);background:linear-gradient(165deg,var(--s2),var(--s1));border:1px dashed var(--b2);text-align:center">
@@ -750,44 +675,41 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- ════ MODALS ════ -->
 
-<!-- Registration -->
+<!-- Регистрация / редактирование профиля. Тексты и аватар подставляет openRegModal() -->
 <div id="reg-m" class="MBG" onclick="if(event.target===this)closeM('reg-m')">
-  <div class="MOD">
+  <div class="MOD rg">
     <div class="MH"></div>
-    <div style="text-align:center;padding:2px 0 16px">
-      <div style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:78px;height:78px;margin-bottom:12px">
-        <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(196,255,62,.2),transparent 68%);animation:glow-pulse 2.6s ease-in-out infinite"></div>
-        <div style="position:absolute;inset:7px;border-radius:50%;border:1.5px solid var(--lime15)"></div>
-        <span style="position:relative;font-size:36px">🎮</span>
-      </div>
-      <div id="reg-title" class="MT" style="font-size:24px;margin-bottom:7px;background:linear-gradient(120deg,#fff 28%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent" data-i="regTitle">Заполни профиль</div>
-      <p style="font-size:12.5px;color:var(--t2);line-height:1.6;max-width:270px;margin:0 auto" data-i="regDesc">Нужно для бонусной программы. Данные не передаём третьим лицам 🔒</p>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:11px">
-      <div style="padding:13px 15px;border-radius:15px;background:var(--s1);border:1px solid var(--b1)">
-        <div style="font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:1.8px;text-transform:uppercase;margin-bottom:7px" data-i="rName">👤 Имя / Никнейм</div>
-        <input class="INP" id="r-name" placeholder="Как тебя зовут?" style="margin:0;background:var(--s2)">
-      </div>
-      <div style="padding:13px 15px;border-radius:15px;background:var(--s1);border:1px solid var(--b1)">
-        <div style="font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:1.8px;text-transform:uppercase;margin-bottom:7px" data-i="rPhone">☎️ Телефон (+375)</div>
-        <input class="INP" id="r-phone" type="tel" placeholder="+375 29 123-45-67" style="margin:0;background:var(--s2)">
-        <div id="phone-err" style="display:none;font-size:10.5px;color:var(--red);margin-top:6px;font-weight:600"></div>
-      </div>
-      <div style="padding:13px 15px;border-radius:15px;background:linear-gradient(160deg,rgba(255,107,180,.07),var(--s1));border:1px solid rgba(255,107,180,.2)">
-        <div style="font-size:9.5px;font-weight:700;color:#ff8fc4;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:7px">🎂 Дата рождения</div>
-        <input class="INP" id="r-bday" type="date" style="margin:0;background:var(--s2)">
-        <div style="font-size:10px;color:var(--t3);margin-top:6px">Подарим <b style="color:#ff8fc4">+50 ⭐</b> в твой день</div>
+    <div class="rg-hd">
+      <div class="rg-av" id="rg-av">🎮</div>
+      <div class="rg-hd-t">
+        <div class="rg-t" id="reg-title">Давай знакомиться</div>
+        <div class="rg-s" id="rg-sub">Три поля — и бронь в пару касаний</div>
       </div>
     </div>
+    <div class="rg-perks" id="rg-perks"></div>
 
-    <div style="display:flex;gap:9px;align-items:center;padding:11px 13px;border-radius:13px;background:rgba(196,255,62,.05);border:1px solid var(--lime15);margin:14px 0 16px">
-      <span style="font-size:15px">🔒</span>
-      <span style="font-size:10.5px;color:var(--t2);line-height:1.5">Телефон нужен только чтобы подтвердить бронь. Никакой рекламы и передачи данных.</span>
+    <label class="rg-f" id="rg-f-name">
+      <span class="rg-l" id="rg-l-name">Имя или ник</span>
+      <span class="rg-box"><i aria-hidden="true">👤</i><input id="r-name" maxlength="40" autocomplete="name" enterkeyhint="next" placeholder="Как тебя зовут?"></span>
+      <span class="rg-e" id="rg-e-name"></span>
+    </label>
+    <label class="rg-f" id="rg-f-phone">
+      <span class="rg-l" id="rg-l-phone">Телефон</span>
+      <span class="rg-box"><i aria-hidden="true">📱</i><input id="r-phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" placeholder="+375 29 123-45-67"><b class="rg-ok" aria-hidden="true">✓</b></span>
+      <span class="rg-h" id="rg-h-phone">Только чтобы подтвердить бронь — без рекламы и звонков</span>
+      <span class="rg-e" id="phone-err"></span>
+    </label>
+    <label class="rg-f" id="rg-f-bday">
+      <span class="rg-l"><span id="rg-l-bday">Дата рождения</span><em id="rg-opt">необязательно</em></span>
+      <span class="rg-box"><i aria-hidden="true">🎂</i><input id="r-bday" inputmode="numeric" autocomplete="bday" enterkeyhint="done" maxlength="10" placeholder="ДД.ММ.ГГГГ"><b class="rg-ok" aria-hidden="true">✓</b></span>
+      <span class="rg-h" id="rg-h-bday">Подарим <b>+50 ⭐</b> в твой день</span>
+      <span class="rg-e" id="rg-e-bday"></span>
+    </label>
+
+    <div class="rg-foot">
+      <button type="button" class="BTN" id="rg-save" onclick="saveReg()">Сохранить</button>
+      <button type="button" class="rg-later" id="rg-later" onclick="closeM('reg-m')">Позже</button>
     </div>
-
-    <button class="BTN" onclick="saveReg()" style="background:var(--grad-main);font-weight:800" data-i="saveBtn">✓ Сохранить</button>
-    <button class="BTN ghost" onclick="closeM('reg-m')" style="margin-top:8px" data-i="cancelBtn">Отмена</button>
   </div>
 </div>
 
@@ -814,128 +736,9 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
   </div>
 </div>
 
-<!-- Rules -->
-<!-- Bonus Info Modal -->
+<!-- Как работают баллы: содержимое собирает openPtsInfo() из тех же правил, по которым считает сервер -->
 <div id="bonus-info-m" class="MBG" onclick="if(event.target===this)closeM('bonus-info-m')">
-  <div class="MOD" style="max-height:88%">
-    <div class="MH"></div>
-
-    <!-- Шапка -->
-    <div style="text-align:center;padding:2px 0 18px">
-      <div style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:82px;height:82px;margin-bottom:12px">
-        <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(255,202,80,.24),transparent 68%);animation:glow-pulse 2.6s ease-in-out infinite"></div>
-        <div style="position:absolute;inset:7px;border-radius:50%;border:1.5px solid rgba(255,202,80,.3)"></div>
-        <span style="position:relative;font-size:40px">⭐</span>
-      </div>
-      <div style="font-family:var(--F);font-size:24px;font-weight:800;letter-spacing:-.7px;background:linear-gradient(120deg,#fff 26%,var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Как работают баллы</div>
-      <div style="font-size:12.5px;color:var(--t2);margin-top:6px;line-height:1.55;max-width:266px;margin-left:auto;margin-right:auto">Играешь — копишь звёзды — меняешь на бесплатные часы</div>
-    </div>
-
-    <!-- Простая схема из 3 шагов -->
-    <div style="display:flex;align-items:stretch;gap:7px;margin-bottom:20px">
-      <div style="flex:1;padding:14px 8px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1);text-align:center">
-        <div style="font-size:22px;margin-bottom:5px">🎮</div>
-        <div style="font-size:10.5px;font-weight:800;color:var(--txt)">Играешь</div>
-        <div style="font-size:9px;color:var(--t3);margin-top:2px">бронь в клубе</div>
-      </div>
-      <div style="display:flex;align-items:center;color:var(--t3);font-size:14px">→</div>
-      <div style="flex:1;padding:14px 8px;border-radius:15px;background:linear-gradient(165deg,rgba(255,202,80,.09),var(--s1));border:1px solid rgba(255,202,80,.22);text-align:center">
-        <div style="font-size:22px;margin-bottom:5px">⭐</div>
-        <div style="font-size:10.5px;font-weight:800;color:var(--gold)">Копишь</div>
-        <div style="font-size:9px;color:var(--t3);margin-top:2px">звёзды сами</div>
-      </div>
-      <div style="display:flex;align-items:center;color:var(--t3);font-size:14px">→</div>
-      <div style="flex:1;padding:14px 8px;border-radius:15px;background:linear-gradient(165deg,rgba(196,255,62,.09),var(--s1));border:1px solid var(--lime30);text-align:center">
-        <div style="font-size:22px;margin-bottom:5px">🎁</div>
-        <div style="font-size:10.5px;font-weight:800;color:var(--lime)">Играешь</div>
-        <div style="font-size:9px;color:var(--t3);margin-top:2px">бесплатно</div>
-      </div>
-    </div>
-
-    <!-- Начисления -->
-    <div class="SL" style="margin:0 0 10px">За что дают звёзды</div>
-    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:20px">
-      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">⏱</div>
-        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Каждый час игры</div><div style="font-size:10px;color:var(--t3);margin-top:1px">5 часов = 5 ⭐</div></div>
-        <b style="font-family:var(--m);font-size:15px;color:var(--gold)">+1</b>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">👑</div>
-        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Зона VIP или Bootcamp</div><div style="font-size:10px;color:var(--t3);margin-top:1px">сверху к часам</div></div>
-        <b style="font-family:var(--m);font-size:15px;color:var(--gold)">+2</b>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,rgba(196,255,62,.07),var(--s1));border:1px solid var(--lime30)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(196,255,62,.12);display:flex;align-items:center;justify-content:center;font-size:18px">📱</div>
-        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Бронь через приложение</div><div style="font-size:10px;color:var(--t3);margin-top:1px">а не по телефону</div></div>
-        <b style="font-family:var(--m);font-size:15px;color:var(--lime)">+1</b>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,202,80,.1);display:flex;align-items:center;justify-content:center;font-size:18px">🎉</div>
-        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">Первая бронь месяца</div><div style="font-size:10px;color:var(--t3);margin-top:1px">щедрый бонус каждый месяц</div></div>
-        <b style="font-family:var(--m);font-size:15px;color:var(--gold)">+5</b>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:linear-gradient(165deg,rgba(255,107,180,.08),var(--s1));border:1px solid rgba(255,107,180,.25)">
-        <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:rgba(255,107,180,.14);display:flex;align-items:center;justify-content:center;font-size:18px">🎂</div>
-        <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--txt)">День рождения</div><div style="font-size:10px;color:var(--t3);margin-top:1px">укажи дату в профиле</div></div>
-        <b style="font-family:var(--m);font-size:15px;color:#ff6bb4">+50</b>
-      </div>
-    </div>
-
-    <!-- Награды -->
-    <div class="SL" style="margin:0 0 10px">На что менять</div>
-    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(196,255,62,.1),rgba(196,255,62,.02));border:1px solid var(--lime30)">
-        <b style="font-family:var(--m);font-size:18px;color:var(--lime);min-width:58px">40 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">1 час Standard</div><div style="font-size:10px;color:var(--t3);margin-top:1px">≈7 визитов по 3ч</div></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(255,202,80,.1),rgba(255,202,80,.02));border:1px solid rgba(255,202,80,.25)">
-        <b style="font-family:var(--m);font-size:18px;color:var(--gold);min-width:58px">100 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">3 часа Standard</div><div style="font-size:10px;color:var(--t3);margin-top:1px">выгоднее, чем брать по часу</div></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(75,158,255,.1),rgba(75,158,255,.02));border:1px solid rgba(75,158,255,.25)">
-        <b style="font-family:var(--m);font-size:18px;color:var(--blue);min-width:58px">170 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--txt)">5 часов Standard</div><div style="font-size:10px;color:var(--t3);margin-top:1px">≈28 визитов бесплатно</div></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:15px;background:linear-gradient(135deg,rgba(255,202,80,.15),rgba(255,202,80,.03));border:1.5px solid rgba(255,202,80,.38)">
-        <b style="font-family:var(--m);font-size:18px;color:var(--gold);min-width:58px">300 ⭐</b>
-        <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--gold)">5 часов VIP / Bootcamp</div><div style="font-size:10px;color:var(--t3);margin-top:1px">топ-награда клуба, топ-награда</div></div>
-        <span style="font-size:17px">👑</span>
-      </div>
-    </div>
-
-    <!-- Как забрать -->
-    <div class="SL" style="margin:0 0 10px">Как забрать награду</div>
-    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:16px">
-      <div style="display:flex;gap:11px;align-items:center">
-        <div style="width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--gold);color:#000;font-family:var(--m);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center">1</div>
-        <div style="font-size:12px;color:var(--t2);line-height:1.45">В профиле жмёшь награду — списываем баллы, выдаём <b style="color:var(--txt)">ваучер</b></div>
-      </div>
-      <div style="display:flex;gap:11px;align-items:center">
-        <div style="width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--cyan);color:#000;font-family:var(--m);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center">2</div>
-        <div style="font-size:12px;color:var(--t2);line-height:1.45">Приходишь в клуб и <b style="color:var(--txt)">показываешь ваучер админу</b></div>
-      </div>
-      <div style="display:flex;gap:11px;align-items:center">
-        <div style="width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--lime);color:#000;font-family:var(--m);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center">3</div>
-        <div style="font-size:12px;color:var(--t2);line-height:1.45">Садишься и <b style="color:var(--lime)">играешь бесплатно</b> 🎮</div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:10px;align-items:flex-start;padding:13px 15px;border-radius:14px;background:rgba(255,202,80,.07);border:1.5px solid rgba(255,202,80,.28);margin-bottom:14px">
-      <span style="font-size:18px;flex-shrink:0">⏰</span>
-      <div>
-        <div style="font-size:12px;font-weight:800;color:var(--gold);margin-bottom:2px">Ваучер живёт 24 часа</div>
-        <div style="font-size:11px;color:var(--t2);line-height:1.5">Активируй, только когда собираешься в клуб — иначе сгорит, а баллы не вернутся.</div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:13px;background:var(--s1);border:1px solid var(--b1);margin-bottom:16px">
-      <span style="font-size:15px;flex-shrink:0">🛡</span>
-      <div style="font-size:10.5px;color:var(--t3);line-height:1.7">Баллы дают за первые <b style="color:var(--t2)">2 брони в день</b>, максимум <b style="color:var(--t2)">10 ⭐ в сутки</b>. Отмена брони списывает начисленное. Всё считается на сервере — баллы не потеряются.</div>
-    </div>
-
-    <button class="BTN" onclick="closeM('bonus-info-m')" style="background:linear-gradient(135deg,var(--gold),#ffb84d);color:#000;font-weight:800">Понятно, погнали копить! ⭐</button>
-  </div>
+  <div class="MOD pi" id="pts-info"></div>
 </div>
 
 <div id="rules-m" class="MBG" onclick="if(event.target===this)closeM('rules-m')">
@@ -1105,17 +908,17 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
     <div class="MH"></div>
     <div style="text-align:center;padding:2px 0 16px">
       <div class="wn-badge-ico"><span>✨</span></div>
-      <div class="wn-ver">ОБНОВЛЕНИЕ v4.3</div>
+      <div class="wn-ver">ОБНОВЛЕНИЕ v4.4</div>
       <div class="wn-title">Что нового</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:5px">Бронь от того, сколько осталось играть на ПК</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:5px">Новый вход, профиль и баллы без путаницы</div>
     </div>
 
     <div class="wn-list">
-      <div class="wn-item lime"><div class="wn-ic">🎮</div><div><b>Видно, сколько осталось</b><span>На каждом ПК — «ещё 25 мин» у того, кто за ним играет, и с какого времени он свободен</span></div></div>
-      <div class="wn-item gold"><div class="wn-ic">⏳</div><div><b>«Взять с 19:45»</b><span>Нажми на занятый ПК — приложение сдвинет начало брони на время, когда он освободится</span></div></div>
-      <div class="wn-item blue"><div class="wn-ic">📅</div><div><b>Учитываем и брони</b><span>Если после игрока на ПК уже есть бронь, предложим время после неё — без накладок</span></div></div>
-      <div class="wn-item pink"><div class="wn-ic">🟢</div><div><b>Кто играет сейчас</b><span>На шаге «Когда» — на скольких ПК играют и какой освободится раньше всех</span></div></div>
-      <div class="wn-item"><div class="wn-ic">🛠</div><div><b>Исправления</b><span>Занятость больше не пропадает, когда приложение открыто у многих сразу; точнее время окончания</span></div></div>
+      <div class="wn-item lime"><div class="wn-ic">🟢</div><div><b>Зал виден с порога</b><span>На первом экране — сколько ПК свободно прямо сейчас в каждой зоне</span></div></div>
+      <div class="wn-item gold"><div class="wn-ic">⭐</div><div><b>Баллы стали понятнее</b><span>Шкала до каждой награды, из чего сложилось начисление и история операций</span></div></div>
+      <div class="wn-item blue"><div class="wn-ic">🎫</div><div><b>Ваучер — в профиле</b><span>Обменял баллы — ваучер лежит в профиле, его удобно показать админу</span></div></div>
+      <div class="wn-item pink"><div class="wn-ic">👤</div><div><b>Профиль за 30 секунд</b><span>Подсказки прямо под полями, дата рождения набирается цифрами</span></div></div>
+      <div class="wn-item"><div class="wn-ic">🛠</div><div><b>Исправления</b><span>«Играет с 16:40» вместо «в игре 2 ч» — не спутать с остатком; занятый ПК больше не показывается свободным</span></div></div>
     </div>
 
     <div class="wn-fb">
@@ -1179,31 +982,31 @@ var m=navigator.deviceMemory,c=navigator.hardwareConcurrency||8;h.classList.add(
 
 <!-- Toast -->
 <div id="toast"></div>
-<script defer src="js/core/guard.js?v=4.3.3"></script>
-<script defer src="js/core/i18n.js?v=4.3.3"></script>
-<script defer src="js/core/config.js?v=4.3.3"></script>
-<script defer src="js/core/clock.js?v=4.3.3"></script>
-<script defer src="js/core/api.js?v=4.3.3"></script>
-<script defer src="js/core/state.js?v=4.3.3"></script>
-<script defer src="js/core/diag.js?v=4.3.3"></script>
-<script defer src="js/core/ui.js?v=4.3.3"></script>
-<script defer src="js/screens/home.js?v=4.3.3"></script>
-<script defer src="js/screens/onboarding.js?v=4.3.3"></script>
-<script defer src="js/booking/time-picker.js?v=4.3.3"></script>
-<script defer src="js/booking/booking.js?v=4.3.3"></script>
-<script defer src="js/core/bookings-api.js?v=4.3.3"></script>
-<script defer src="js/screens/my-bookings.js?v=4.3.3"></script>
-<script defer src="js/screens/rewards.js?v=4.3.3"></script>
-<script defer src="js/screens/profile.js?v=4.3.3"></script>
-<script defer src="js/screens/achievements.js?v=4.3.3"></script>
-<script defer src="js/screens/promo.js?v=4.3.3"></script>
-<script defer src="js/screens/settings.js?v=4.3.3"></script>
-<script defer src="js/extras/snake.js?v=4.3.3"></script>
-<script defer src="js/extras/fx.js?v=4.3.3"></script>
-<script defer src="js/admin/offline.js?v=4.3.3"></script>
-<script defer src="js/admin/admin.js?v=4.3.3"></script>
-<script defer src="js/extras/hints.js?v=4.3.3"></script>
-<script defer src="js/core/live.js?v=4.3.3"></script>
-<script defer src="js/main.js?v=4.3.3"></script>
+<script defer src="js/core/guard.js?v=4.4.0"></script>
+<script defer src="js/core/i18n.js?v=4.4.0"></script>
+<script defer src="js/core/config.js?v=4.4.0"></script>
+<script defer src="js/core/clock.js?v=4.4.0"></script>
+<script defer src="js/core/api.js?v=4.4.0"></script>
+<script defer src="js/core/state.js?v=4.4.0"></script>
+<script defer src="js/core/diag.js?v=4.4.0"></script>
+<script defer src="js/core/ui.js?v=4.4.0"></script>
+<script defer src="js/screens/home.js?v=4.4.0"></script>
+<script defer src="js/screens/onboarding.js?v=4.4.0"></script>
+<script defer src="js/booking/time-picker.js?v=4.4.0"></script>
+<script defer src="js/booking/booking.js?v=4.4.0"></script>
+<script defer src="js/core/bookings-api.js?v=4.4.0"></script>
+<script defer src="js/screens/my-bookings.js?v=4.4.0"></script>
+<script defer src="js/screens/rewards.js?v=4.4.0"></script>
+<script defer src="js/screens/profile.js?v=4.4.0"></script>
+<script defer src="js/screens/achievements.js?v=4.4.0"></script>
+<script defer src="js/screens/promo.js?v=4.4.0"></script>
+<script defer src="js/screens/settings.js?v=4.4.0"></script>
+<script defer src="js/extras/snake.js?v=4.4.0"></script>
+<script defer src="js/extras/fx.js?v=4.4.0"></script>
+<script defer src="js/admin/offline.js?v=4.4.0"></script>
+<script defer src="js/admin/admin.js?v=4.4.0"></script>
+<script defer src="js/extras/hints.js?v=4.4.0"></script>
+<script defer src="js/core/live.js?v=4.4.0"></script>
+<script defer src="js/main.js?v=4.4.0"></script>
 </body>
 </html>

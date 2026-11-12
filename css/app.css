@@ -97,18 +97,6 @@ a{text-decoration:none;color:inherit}
 #bug-shot-box:active{transform:scale(.985)}
 #bug-shot-box{transition:border-color .15s,transform .12s}
 .bugchip.on{background:linear-gradient(160deg,rgba(196,255,62,.16),rgba(196,255,62,.05));border-color:var(--lime);color:var(--lime);box-shadow:0 0 14px rgba(196,255,62,.18)}
-.rw-btn{display:flex;align-items:center;gap:13px;width:100%;padding:14px 15px;border-radius:16px;background:linear-gradient(165deg,var(--s2),var(--s1));border:1px solid var(--b1);cursor:pointer;text-align:left;transition:transform .12s,border-color .18s,box-shadow .25s}
-.rw-btn:active{transform:scale(.985);border-color:var(--lime30)}
-.rw-btn:not(.locked){box-shadow:0 2px 10px rgba(0,0,0,.22)}
-.rw-btn.locked{opacity:.45;filter:saturate(.5)}
-.rw-btn.top:not(.locked){box-shadow:0 5px 20px rgba(255,202,80,.12),inset 0 1px 0 rgba(255,255,255,.05)}
-.rw-btn.top{background:linear-gradient(165deg,rgba(255,202,80,.11),var(--s1));border-color:rgba(255,202,80,.3)}
-.rw-btn.locked{opacity:.5}
-.rw-cost{font-family:var(--m);font-size:17px;font-weight:700;min-width:60px;flex-shrink:0}
-.rw-mid{flex:1;min-width:0}
-.rw-name{font-size:13px;font-weight:800;color:var(--txt);line-height:1.25}
-.rw-sub{font-size:10px;color:var(--t3);margin-top:2px}
-.rw-go{color:var(--t3);font-size:17px;flex-shrink:0}
 
 /* 🩹 Облегчённый режим — включается сам при зависаниях */
 /* Облегчённый режим гасит ТОЛЬКО декоративное.
@@ -218,33 +206,6 @@ body.onboarding .BN{display:none}
 input[type=range]{width:100%;height:6px;border-radius:3px;cursor:pointer;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,var(--lime) 0%,var(--lime) var(--p,58%),var(--s4) var(--p,58%),var(--s4) 100%);margin:6px 0 12px}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.6);border:3px solid var(--lime);transition:transform .12s}
 input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
-
-/* ══ ONBOARDING ══ */
-#ob{background:var(--bg);justify-content:flex-end}
-.ob-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(196,255,62,.016) 1px,transparent 1px),linear-gradient(90deg,rgba(196,255,62,.016) 1px,transparent 1px);background-size:50px 50px;pointer-events:none}
-.ob-g1{position:absolute;bottom:-120px;left:-80px;width:500px;height:500px;background:radial-gradient(circle,rgba(196,255,62,.10) 0%,transparent 62%);pointer-events:none}
-.ob-g2{position:absolute;top:-80px;right:-60px;width:360px;height:360px;background:radial-gradient(circle,rgba(46,237,181,.06) 0%,transparent 65%);pointer-events:none}
-.ob-g3{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);width:180px;height:180px;background:radial-gradient(circle,rgba(196,255,62,.05) 0%,transparent 70%);pointer-events:none;animation:GLOW 5s ease-in-out infinite}
-.ob-body{position:relative;z-index:1;padding:0 28px 56px}
-.ob-eye{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:10px;background:var(--s2);border:1px solid var(--b1);font-family:var(--m);font-size:10px;color:var(--t2);letter-spacing:2px;margin-bottom:28px}
-.ob-logo{font-family:var(--F);font-size:clamp(58px,15vw,76px);font-weight:800;letter-spacing:-3px;line-height:.88;color:var(--txt)}
-.ob-logo em{color:var(--lime);font-style:normal;display:block;text-shadow:0 0 60px rgba(196,255,62,.38)}
-.ob-sub{font-size:15px;color:var(--t2);line-height:1.7;margin:14px 0 24px;max-width:280px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:30px}
-.chip{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:9px;background:var(--s2);border:1px solid var(--b1);font-size:11px;color:var(--t2);font-weight:500}
-.chip strong{color:var(--lime)}
-.ob-note{text-align:center;font-size:11px;color:var(--t3);margin-top:12px;line-height:1.6}
-
-/* ── Onboarding Slides ── */
-.ob-slides{position:relative;margin-bottom:28px;min-height:120px}
-.ob-slide{position:absolute;inset:0;opacity:0;transform:translateX(30px);transition:all .45s var(--e);pointer-events:none}
-.ob-slide.active{opacity:1;transform:none;pointer-events:all;position:relative}
-.ob-slide-icon{font-size:42px;margin-bottom:12px;filter:drop-shadow(0 0 20px rgba(196,255,62,.4))}
-.ob-slide-title{font-family:var(--F);font-size:22px;font-weight:800;letter-spacing:-.7px;background:linear-gradient(120deg,#fff 30%,var(--lime));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
-.ob-slide-desc{font-size:13px;color:var(--t2);line-height:1.65}
-.ob-dots-row{display:flex;gap:6px;justify-content:center;margin-bottom:22px}
-.ob-dot{width:6px;height:6px;border-radius:50%;background:var(--s4);transition:all .3s var(--e);cursor:pointer}
-.ob-dot.on{background:var(--lime);width:24px;border-radius:3px;box-shadow:0 0 8px rgba(196,255,62,.5)}
 
 /* ── Offline Banner ── */
 #offline-bar{position:fixed;top:0;left:0;right:0;padding:10px 16px;background:linear-gradient(135deg,rgba(255,63,96,.95),rgba(200,30,60,.95));color:#fff;font-size:12px;font-weight:600;text-align:center;z-index:9999;transform:translateY(-100%);transition:transform .35s var(--e);display:flex;align-items:center;justify-content:center;gap:8px}

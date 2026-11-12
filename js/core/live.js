@@ -85,10 +85,11 @@ function gizmoLeftMin(pcLabel){
   }
   return null
 }
-// «в игре 40 мин» / «только сел» — когда конец сессии неизвестен, но видели её начало
+// «играет с 16:41» / «только сел» — когда конец сессии неизвестен, но видели её начало.
+// Раньше писали «в игре 2 ч 20 мин» — это читали как «осталось 2 ч 20 мин». Время начала с остатком не спутать
 function playingLabel(m){
   const en=D.lang!=='ru'
-  return m<1?(en?'just sat down':'только сел'):(en?'playing ':'в игре ')+fmtDur(m)
+  return m<1?(en?'just sat down':'только сел'):(en?'playing since ':'играет с ')+minToHM(clubNow().abs-m)
 }
 // Сколько минут уже идёт сессия (null — мост не знает, сервер не видел её начало)
 function gizmoSinceMin(pcLabel){
@@ -207,6 +208,8 @@ function renderLive(){
   const key=fresh+JSON.stringify(zones)
   if(key===_liveKey)return
   _liveKey=key
+  // Первый экран показывает тот же зал — но только когда данные уже пришли (иначе «все свободны» было бы враньём)
+  if(_bookingsCache.loaded||_gizmoCache.ts)renderObHall(zones)
   const el=document.getElementById('free-count')
   if(el){
     el.textContent=total
