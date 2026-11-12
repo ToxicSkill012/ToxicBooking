@@ -6,7 +6,8 @@
 
   Что делает:
     1. Скачивает мост в C:\ToxicBridge (повторный запуск — обновление, настройки сохраняются).
-    2. Спрашивает адрес, логин и пароль Gizmo и проверяет, что Gizmo их принимает.
+    2. Сам находит Gizmo (порт сервера или сервер в локальной сети), спрашивает логин и пароль оператора
+       и проверяет, что Gizmo их принимает. Адрес спрашивает, только если не нашёл.
     3. Проверяет, что мост видит ПК и время, оставшееся у игроков.
     4. Останавливает старый мост и ставит новый в автозапуск Windows — работает и после перезагрузки.
 #>
@@ -64,10 +65,10 @@ function To-Table($o) {
 if (Test-Path $cfgPath) {
   try { $cfg = To-Table (Get-Content -Raw -Encoding UTF8 $cfgPath | ConvertFrom-Json); $cfg.hostMap = To-Table $cfg.hostMap } catch { $cfg = $null }
 }
-function Test-Gizmo($url, $user, $pass) {
+function Test-Gizmo($url, $user, $pass, $timeout = 8) {
   $h = @{ Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${user}:${pass}")); Accept = 'application/json' }
   foreach ($p in @('/api/v2.0/hosts?Pagination.Limit=1', '/api/hostcomputers', '/api/hosts')) {
-    try { Invoke-RestMethod -Uri ($url.TrimEnd('/') + $p) -Headers $h -TimeoutSec 8 | Out-Null; return 'ok' }
+    try { Invoke-RestMethod -Uri ($url.TrimEnd('/') + $p) -Headers $h -TimeoutSec $timeout | Out-Null; return 'ok' }
     catch {
       $code = 0; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
       if ($code -eq 401 -or $code -eq 403) { return 'auth' }
@@ -76,6 +77,31 @@ function Test-Gizmo($url, $user, $pass) {
   }
   return 'api'
 }
+# Где у этого клуба отвечает Gizmo: порт сервера не всегда 80, а сам сервер не всегда на этом ПК.
+# Ищем сами, чтобы не спрашивать про «Web portal»: порты, которые слушает Gizmo на этом ПК; сервер в локальной сети,
+# к которому подключён Gizmo Manager; обычные порты. Gizmo узнаём по ответу API (в том числе «нужен пароль»).
+function Find-Gizmo {
+  $cand = New-Object System.Collections.ArrayList
+  $add = { param($u) if ($u -and -not $cand.Contains($u)) { [void]$cand.Add($u) } }
+  if ($env:TOXIC_BRIDGE_SCAN) { $env:TOXIC_BRIDGE_SCAN.Split(',') | ForEach-Object { & $add $_.Trim() } }
+  try {
+    $gz = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match 'gizmo' })
+    foreach ($p in $gz) {
+      Get-NetTCPConnection -State Listen -OwningProcess $p.Id -ErrorAction SilentlyContinue | ForEach-Object { & $add ('http://127.0.0.1:' + $_.LocalPort) }
+    }
+    foreach ($p in $gz) {
+      Get-NetTCPConnection -State Established -OwningProcess $p.Id -ErrorAction SilentlyContinue |
+        Where-Object { $_.RemoteAddress -match '^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)' } |
+        ForEach-Object { & $add ('http://' + $_.RemoteAddress + ':' + $_.RemotePort); & $add ('http://' + $_.RemoteAddress) }
+    }
+  } catch {}
+  foreach ($port in 80, 8080, 8081, 8090, 8000, 5000, 9000) { & $add "http://127.0.0.1:$port" }
+  foreach ($u in $cand) {
+    $r = Test-Gizmo $u '-' '-' 2
+    if ($r -eq 'ok' -or $r -eq 'auth') { return $u }
+  }
+  return ''
+}
 $needAsk = -not $cfg -or -not $cfg.gizmoUrl -or -not $cfg.gizmoUser
 if (-not $needAsk) {
   Say "2) Настройки уже есть ($($cfg.gizmoUrl), пользователь $($cfg.gizmoUser)) — проверяю…"
@@ -83,11 +109,22 @@ if (-not $needAsk) {
   if ($r -ne 'ok') { Say '   Gizmo их не принимает — введём заново.' 'Yellow'; $needAsk = $true } else { Say '   Gizmo отвечает' 'Green' }
 }
 if ($needAsk) {
-  Say '2) Данные для входа в Gizmo (логин оператора, как в Gizmo Manager)'
-  $url = 'http://127.0.0.1'; $user = 'admin'
+  Say '2) Ищу Gizmo…'
+  $url = Find-Gizmo
+  $known = [bool]$url
+  if ($known) { Say "   нашёл: $url" 'Green' }
+  else {
+    Say '   Сам не нашёл. Запусти эту команду на ПК, где стоит сервер Gizmo, — или укажи его адрес.' 'Yellow'
+    $url = 'http://127.0.0.1'
+  }
+  Say '   Логин и пароль оператора — те же, с которыми входишь в Gizmo Manager.'
+  $user = 'admin'
   for ($try = 1; $try -le 5; $try++) {
-    $url  = Ask '   Адрес Gizmo' $url
-    if ($url -notmatch '^https?://') { $url = 'http://' + $url }
+    # Адрес спрашиваем, только если не нашли сами или найденный перестал отвечать
+    if (-not $known) {
+      $url = Ask '   Адрес Gizmo' $url
+      if ($url -notmatch '^https?://') { $url = 'http://' + $url }
+    }
     $user = Ask '   Логин' $user
     if ($Test) { $pass = Read-Host '   Пароль' } else {
       $sec  = Read-Host '   Пароль' -AsSecureString
@@ -95,9 +132,9 @@ if ($needAsk) {
     }
     $r = Test-Gizmo $url $user $pass
     if ($r -eq 'ok') { Say '   Gizmo принял логин' 'Green'; break }
-    if ($r -eq 'auth') { Say '   Gizmo не принял логин или пароль — попробуй ещё раз.' 'Red' }
-    elseif ($r -eq 'down') { Say "   Gizmo не отвечает по адресу $url. В Gizmo: Настройки → Web portal → включить (запомни порт; не 80 — укажи адрес так: http://127.0.0.1:ПОРТ)." 'Red' }
-    else { Say '   Gizmo ответил, но API недоступно — проверь, что включён Web portal.' 'Red' }
+    if ($r -eq 'auth') { $known = $true; Say '   Gizmo не принял логин или пароль — попробуй ещё раз.' 'Red' }
+    elseif ($r -eq 'down') { $known = $false; Say "   По адресу $url Gizmo не отвечает. Нужен ПК, на котором стоит сервер Gizmo (там, где работает старый мост). Адрес с портом пишется так: http://127.0.0.1:8080" 'Red' }
+    else { $known = $false; Say "   По адресу $url отвечает не Gizmo — проверь адрес и порт." 'Red' }
     if ($try -eq 5) { Say 'Не получилось подключиться к Gizmo. Исправь и запусти команду снова.' 'Red'; return }
   }
   $old = if ($cfg) { $cfg.hostMap } else { [ordered]@{} }

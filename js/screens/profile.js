@@ -90,7 +90,7 @@ function renderProfile(){
   } else if(bksEl){ bksEl.style.display='none' }
   // Блок бонусных баллов: баланс, шкала наград, ваучеры (js/screens/rewards.js)
   renderPoints()
-  if(u.reg&&u._tgId){loadServerPoints();loadVouchers()}
+  if(u._tgId){loadServerPoints();loadVouchers()}
   // Статус в зависимости от баллов и количества бронирований
   const stEl=document.getElementById('ps-status')?.querySelector('.ps-n')
   if(stEl){

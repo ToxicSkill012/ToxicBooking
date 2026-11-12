@@ -55,7 +55,9 @@ async function loadVouchers(force=false){
 function renderPoints(){
   const box=document.getElementById('bonus-pts-blk');if(!box)return
   const u=D.user
-  if(!u.reg){box.style.display='none';return}
+  // Баллы привязаны к аккаунту Telegram, а не к анкете: у кого они могут быть — тот их и видит.
+  // Раньше гость, который бронировал без анкеты, копил баллы, но обменять их было негде
+  if(!u.reg&&!u._tgId){box.style.display='none';return}
   box.style.display='block'
   const pts=Math.max(0,+u.pts||0),R=PTS_RULES,n=REWARDS.length
   const next=REWARDS.find(r=>pts<r.cost)
