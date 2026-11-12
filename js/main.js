@@ -105,9 +105,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   renderPromoList()
   // Clock tick — раз в минуту, не 30 сек
   setInterval(()=>{ if(!document.hidden) updateGr() },60000)
-  // Onboarding
-  startObSlides()
-  initObParticles()
+  // Первый экран: тексты и живая занятость зала (брони нужны сразу, чтобы счёт совпадал с главной)
+  renderOb()
+  idle(()=>{if(D.cur==='ob')updateFreeCounter()})
   // Offline detector — реже
   checkOnline()
   window.addEventListener('online',checkOnline,{passive:true})

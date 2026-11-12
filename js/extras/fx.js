@@ -1,36 +1,4 @@
-// Частицы, напоминание, конфетти
-
-// ═══ ONBOARDING PARTICLES ═══
-function initObParticles(){
-  const cv=document.getElementById('ob-particles');if(!cv)return
-  const ctx=cv.getContext('2d')
-  const resize=()=>{
-    cv.width=window.innerWidth||390
-    cv.height=window.innerHeight||844
-  }
-  resize()
-  window.addEventListener('resize',resize)
-  const pts=Array.from({length:25},()=>({
-    x:Math.random()*cv.width,y:Math.random()*cv.height,
-    r:Math.random()*2+1,
-    vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
-    color:Math.random()>.5?'#c4ff3e':'#2aedb5'
-  }))
-  const tick=()=>{
-    // Останавливаем цикл когда ушли с онбординга (экономия батареи)
-    if(typeof D!=='undefined'&&D.cur&&D.cur!=='ob'){ctx.clearRect(0,0,cv.width,cv.height);return}
-    ctx.clearRect(0,0,cv.width,cv.height)
-    pts.forEach(p=>{
-      p.x+=p.vx;p.y+=p.vy
-      if(p.x<0)p.x=cv.width;if(p.x>cv.width)p.x=0
-      if(p.y<0)p.y=cv.height;if(p.y>cv.height)p.y=0
-      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2)
-      ctx.fillStyle=p.color;ctx.globalAlpha=.6;ctx.fill()
-    })
-    requestAnimationFrame(tick)
-  }
-  requestAnimationFrame(tick)
-}
+// Напоминание, конфетти
 
 // ═══ REMINDER ═══
 function scheduleReminder(bk){

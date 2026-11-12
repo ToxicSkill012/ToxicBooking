@@ -91,8 +91,9 @@ function pcSlot(lbl,map,bookings,s,e){
       o.until=sess.end
       o.sub='🎮 '+T(`до ${fmtAbs(sess.end)} · ещё ${fmtDur(sess.end-nowAbs)}`,`till ${fmtAbs(sess.end)} · ${fmtDur(sess.end-nowAbs)} left`)
     }else if(blk[0]<=nowAbs){
+      // За ПК играют (o.live) — «занят»; идёт бронь, а в зале за ним никого — «бронь»: место держат за гостем
       o.until=blk[1]
-      o.sub=T('занят до ','busy till ')+fmtAbs(blk[1])
+      o.sub=(o.live?T('занят до ','busy till '):T('бронь до ','booked till '))+fmtAbs(blk[1])
     }else{
       o.sub=T('бронь ','booked ')+minToHM(blk[0])+'–'+minToHM(blk[1])
     }
@@ -596,6 +597,11 @@ function sConfirm(w,z){
       return fail(res.error||T('Не удалось забронировать','Booking failed'))
     }
     const paid=res.total!=null?res.total:total
+    // Имя и телефон гость уже дал — анкета заполнена: окно «Давай знакомиться» больше не всплывает при каждом входе
+    if(!D.user.reg){
+      Object.assign(D.user,{reg:true,_hintsSeen:true,handle:D.user.handle||name.toLowerCase().replace(/[^a-zа-яё0-9]/gi,'_').substring(0,30)})
+      if(D.user._tgId)fetch(API_URL+'?'+new URLSearchParams({action:'saveUserProfile',user:name,phone:D.user.phone,birthday:D.user.bday||'',_t:Date.now()})).catch(()=>{})
+    }
     const nb={id:res.id,ids:res.ids||[res.id],grp:res.group||'',zone:bk.zone,pc:bk.pcs.join(', '),pcs:[...bk.pcs],team:n,
       pkg:res.pkg||tariffLabel(),date:bk.date,start:minToHM(s),end:minToHM(e),h:Math.round((e-s)/6)/10,price:paid,status:'active'}
     D.user.bks.unshift(nb);D.user.hrs=Math.round(((D.user.hrs||0)+(e-s)/60)*10)/10

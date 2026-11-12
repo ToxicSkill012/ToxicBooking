@@ -1,6 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║     TOXICSKILL — Google Apps Script Backend v7.5             ║
+// ║     TOXICSKILL — Google Apps Script Backend v7.7             ║
 // ║                                                              ║
+// ║  v7.7: мост прислал один ПК дважды — он занят, если занята   ║
+// ║        хоть одна запись (раньше мог показаться свободным);   ║
+// ║        баллы: +1 за каждый полный час, отменённая бронь не   ║
+// ║        съедает лимит и бонус месяца, история и ваучеры       ║
 // ║  v7.6: старый мост нумерует ПК по порядку — его ST-12/ST-13  ║
 // ║        переводим в ST-13/ST-15 (как в Gizmo: TOXIC13, 15)    ║
 // ║  v7.5: ST-15 (в Standard 14 ПК: 01–13 и 15); брони без      ║
@@ -65,7 +69,7 @@ const SHEET_PROMOLOG = 'PromoLog'
 const SHEET_REVIEWS  = 'Reviews'
 const SHEET_USERS    = 'Users'
 const CLUB_TZ        = 'Europe/Minsk'
-const BACKEND_V      = '7.6'  // версия бэкенда (видна в диагностике панели)
+const BACKEND_V      = '7.7'  // версия бэкенда (видна в диагностике панели)
 
 // 🔒 Действия клиента (баллы, отмена, профиль…) только с подписью Telegram.
 // Без подписи клиент считается гостем. Ставь false только на время перехода.
@@ -531,11 +535,21 @@ function getPoints(tgId) {
     for (let i = 1; i < rows.length; i++) {
       if (String(rows[i][1]) !== String(tgId)) continue
       const amt = parseInt(rows[i][5])||0; bal += amt
-      hist.push({ date:String(rows[i][0]), action:String(rows[i][4]), amount:amt, reason:String(rows[i][6]) })
+      hist.push({ date:ptsIso_(rows[i][0]), action:String(rows[i][4]), amount:amt, reason:String(rows[i][6]) })
     }
-    return { ok:true, balance:Math.max(0,bal), history:hist.slice(-20) }
+    // rules — чтобы приложение показывало те же правила, что считает сервер
+    return { ok:true, balance:Math.max(0,bal), history:hist.slice(-20), rules:PTS }
   } catch(e) { return { ok:true, balance:0, history:[] } }
 }
+// Время записи в журнале баллов → ISO (Sheets мог превратить строку в дату)
+function ptsIso_(v) {
+  var d = v instanceof Date ? v : new Date(String(v))
+  return isNaN(d.getTime()) ? '' : d.toISOString()
+}
+// Минуты брони → баллы за время: +perHour за каждый ПОЛНЫЙ час, но не меньше одного раза
+// (раньше 1 ч 30 мин округлялись до 2 часов, а в подписи стояло «2ч»)
+function ptsForMinutes_(min) { return Math.max(1, Math.floor(min / 60)) * PTS.perHour }
+function bookingMinutes_(start, end) { var a = timeToMin(start), b = timeToMin(end); if (b <= a) b += 1440; return b - a }
 
 function logPts(tgId, user, phone, action, amount, reason, bkId) {
   const cur = getPoints(tgId)
@@ -549,49 +563,54 @@ function awardPoints(bk, bkId) {
   if (!bk.tgId) return { ok:false, reason:'no_tg' }
 
   const tz = CLUB_TZ
-  const today = Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy')
+  const fmt = function(d, f) { return Utilities.formatDate(d, tz, f) }
+  const today = fmt(new Date(), 'dd.MM.yyyy'), month = fmt(new Date(), 'MM.yyyy')
   const rows = ptsSheet().getDataRange().getValues()
 
-  let dayCount=0, dayPts=0, lastTime=null
+  // Начисления за отменённые брони уже списаны — они не должны съедать дневной лимит и бонус месяца:
+  // раньше «забронировал → отменил → забронировал заново» оставляло клиента без баллов
+  const revoked = {}
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][1])===String(bk.tgId) && String(rows[i][4])==='cancel' && String(rows[i][7])) revoked[String(rows[i][7])] = 1
+  }
+
+  let dayCount=0, dayPts=0, lastTime=null, had=false
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][1])!==String(bk.tgId) || String(rows[i][4])!=='earn') continue
-    const ts = new Date(String(rows[i][0]))
-    if (Utilities.formatDate(ts, tz, 'dd.MM.yyyy') === today) {
-      dayCount++; dayPts += parseInt(rows[i][5])||0
-    }
+    if (String(rows[i][7]) && revoked[String(rows[i][7])]) continue
+    const ts = rows[i][0] instanceof Date ? rows[i][0] : new Date(String(rows[i][0]))
+    if (isNaN(ts.getTime())) continue
+    if (fmt(ts, 'dd.MM.yyyy') === today) { dayCount++; dayPts += parseInt(rows[i][5])||0 }
+    // Месяц и год по времени клуба (раньше сравнивался только номер месяца — ноябрь прошлого года считался «этим»)
+    if (fmt(ts, 'MM.yyyy') === month) had = true
     if (!lastTime || ts > lastTime) lastTime = ts
   }
 
   // 🔒 Макс N начислений/день
-  if (dayCount >= PTS.maxBookPerDay) return { ok:false, msg:'Лимит: '+PTS.maxBookPerDay+' начисления/день' }
+  if (dayCount >= PTS.maxBookPerDay) return { ok:false, msg:'Баллы начисляются за первые '+PTS.maxBookPerDay+' брони в день' }
 
   // 🔒 Мин. интервал
   if (lastTime && (Date.now()-lastTime.getTime()) < PTS.minHoursBetween*3600000)
-    return { ok:false, msg:'Мин. '+PTS.minHoursBetween+'ч между начислениями' }
+    return { ok:false, msg:'Баллы за вторую бронь — не раньше чем через '+PTS.minHoursBetween+' ч после первой' }
 
   // Расчёт
-  const hrs = parseHours(bk.start, bk.end)
-  let pts = hrs * PTS.perHour
+  const mins = bookingMinutes_(bk.start, bk.end)
+  let pts = ptsForMinutes_(mins)
+  const parts = [durRu_(mins)+' +'+pts]
 
   const z = String(bk.zone||'').toLowerCase()
-  if (z==='vip'||z==='bc'||z==='bootcamp') pts += PTS.vipBonus
-  if (bk.isTg) pts += PTS.tgBonus
-
-  const curMonth = new Date().getMonth()
-  const had = rows.some((r,i) => i>0 && String(r[1])===String(bk.tgId) && String(r[4])==='earn' && new Date(String(r[0])).getMonth()===curMonth)
-  if (!had) pts += PTS.firstMonthBonus
+  if (z==='vip'||z==='bc'||z==='bootcamp') { pts += PTS.vipBonus; parts.push((z==='vip'?'VIP':'Bootcamp')+' +'+PTS.vipBonus) }
+  if (bk.isTg) { pts += PTS.tgBonus; parts.push('приложение +'+PTS.tgBonus) }
+  if (!had) { pts += PTS.firstMonthBonus; parts.push('первая бронь месяца +'+PTS.firstMonthBonus) }
 
   // 🔒 Потолок
-  if (dayPts+pts > PTS.maxPtsPerDay) pts = Math.max(0, PTS.maxPtsPerDay-dayPts)
-  if (pts <= 0) return { ok:false, msg:'Дневной лимит баллов' }
+  let capped = false
+  if (dayPts+pts > PTS.maxPtsPerDay) { pts = Math.max(0, PTS.maxPtsPerDay-dayPts); capped = true }
+  if (pts <= 0) return { ok:false, msg:'Дневной лимит баллов: '+PTS.maxPtsPerDay+' ⭐ в сутки' }
+  if (capped) parts.push('лимит '+PTS.maxPtsPerDay+' в сутки')
 
-  const tags = [hrs+'ч']
-  if (z==='vip'||z==='bc'||z==='bootcamp') tags.push('VIP')
-  if (bk.isTg) tags.push('TG')
-  if (!had) tags.push('1й/мес')
-
-  const res = logPts(bk.tgId, bk.user, bk.phone, 'earn', pts, 'Бронь: '+tags.join(' · '), bkId)
-  return { ok:true, earned:pts, balance:res.balance, tags:tags.join(' · ') }
+  const res = logPts(bk.tgId, bk.user, bk.phone, 'earn', pts, 'Бронь: '+parts.join(' · '), bkId)
+  return { ok:true, earned:pts, balance:res.balance, tags:parts.join(' · ') }
 }
 
 // ── Баллы за групповое бронирование (как за 1 ПК, анти-абуз) ──
@@ -1664,6 +1683,20 @@ function remapLegacyBridge_(hosts) {
   return hosts
 }
 
+// Мост иногда присылает один ПК дважды (в Gizmo у компьютера осталась вторая запись). Раньше побеждала
+// последняя: «занят» + «свободен» давало «свободен». Теперь ПК занят, если занята хотя бы одна запись.
+function mergeHosts_(hosts) {
+  var by = {}, out = []
+  hosts.forEach(function(h) {
+    var k = String(h.pc).trim().toUpperCase(), p = by[k]
+    if (!p) { by[k] = h; out.push(h); return }
+    if (h.busy && !p.busy) { p.busy = true; p.until = h.until; p.sinceIso = h.sinceIso; if (h.user) p.user = h.user }
+    else if (h.busy && p.busy) { if (!p.until && h.until) p.until = h.until; if (!p.sinceIso && h.sinceIso) p.sinceIso = h.sinceIso }
+    if (h.online !== false) p.online = true
+  })
+  return out
+}
+
 // Принять компактный статус от Gizmo Bridge (GET)
 // Формат: hosts=ST-01:0,ST-02:1:45,VIP-01:1:120:30   (ПК:занят[:минут осталось[:минут уже играет]])
 // Остаток можно не знать, а начало — знать: ST-03:1::25
@@ -1678,7 +1711,8 @@ function gizmoSyncCompact(hostsStr, total, busy, free) {
       hosts.push({ pc:pc, zone:detectZone_(pc), busy:isBusy, online:true, user:'',
         until: isBusy ? gizmoUntil_(parts[2], '', nowMs) : '', sinceIso: isBusy ? gizmoSince_(parts[3], nowMs) : '' })
     })
-    gizmoSave_(remapLegacyBridge_(hosts))
+    hosts = mergeHosts_(remapLegacyBridge_(hosts))
+    gizmoSave_(hosts)
     return { ok:true, count:hosts.length }
   } catch(e) { return { ok:false, error:e.toString() } }
 }
@@ -1698,6 +1732,7 @@ function gizmoSync(hostsJson) {
       return { pc:pc, zone:h.zone ? san(String(h.zone),10) : detectZone_(pc), busy:isBusy, online:h.online !== false,
         user:san(String(h.user||''),40), until: isBusy ? gizmoUntil_(h.left, h.until, nowMs) : '', sinceIso: since }
     })
+    hosts = mergeHosts_(hosts)
     gizmoSave_(hosts)
     return { ok:true, count:hosts.length }
   } catch(e) { return { ok:false, error:e.toString() } }

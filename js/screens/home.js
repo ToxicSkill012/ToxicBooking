@@ -5,9 +5,11 @@
 // ═══════════════════════════════════════════════
 function doLogin(btn){
   if(btn){btn.innerHTML='<span class="spin"></span>';btn.disabled=true}
-  const delay=btn?1100:0
+  // Короткая пауза — только чтобы нажатие было видно (раньше вход «думал» больше секунды без причины)
+  const delay=btn?380:0
   setTimeout(()=>{
     go('home');updateGr();renderProfile();buildNav('home')
+    if(btn){btn.disabled=false;renderOb()}
     if(!D.user.reg)setTimeout(()=>openRegModal(),900)
     else{
       // Существующим пользователям подсказки не показываем
@@ -52,7 +54,7 @@ function applyLang(){
   document.getElementById('lo-ru').className='LO'+(D.lang==='ru'?' sel':'')
   document.getElementById('lo-en').className='LO'+(D.lang==='en'?' sel':'')
   const loZh=document.getElementById('lo-zh');if(loZh)loZh.className='LO'+(D.lang==='zh'?' sel':'')
-  buildNav(D.cur);updateGr()
+  buildNav(D.cur);updateGr();renderOb()
   if(D.cur==='bklist')renderBkList()
   if(D.cur==='profile')renderProfile()
   if(D.cur==='book')renderStep()

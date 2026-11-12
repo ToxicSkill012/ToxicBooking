@@ -88,37 +88,9 @@ function renderProfile(){
       <div style="font-family:var(--m);font-size:13px;font-weight:700;color:var(--lime);flex-shrink:0">${b.price} BYN</div>
     </div>`).join('')
   } else if(bksEl){ bksEl.style.display='none' }
-  // Блок бонусных баллов
-  const bpBlk=document.getElementById('bonus-pts-blk')
-  const ptsVal=document.getElementById('pts-val')
-  if(bpBlk&&u.reg){
-    bpBlk.style.display='block'
-    const pts=u.pts||0
-    if(ptsVal) countUp(ptsVal,pts)
-    // Подсветка доступных наград
-    document.querySelectorAll('.rw-btn').forEach(b=>{
-      const cost=+b.dataset.cost||0
-      const ok=pts>=cost
-      b.classList.toggle('locked',!ok)
-      const go=b.querySelector('.rw-go')
-      if(go){go.textContent=ok?'›':'🔒';go.style.color=ok?'var(--lime)':'var(--t3)'}
-    })
-    // Прогресс-бар — пороги по каталогу наград
-    const thresholds=[40,100,170,300]
-    const next=thresholds.find(t=>pts<t)||400
-    const prev=[0,...thresholds].filter(t=>t<=pts).pop()||0
-    const pct=next>prev?Math.min(100,Math.round(((pts-prev)/(next-prev))*100)):100
-    const fill=document.getElementById('pts-bar-fill')
-    const lbl=document.getElementById('pts-next-label')
-    const nextVal=document.getElementById('pts-next-val')
-    if(fill) fill.style.width=pct+'%'
-    const labels={40:'1 час Standard',100:'3 часа Standard',170:'5 часов Standard',300:'5 часов VIP'}
-    const rem=next-pts
-    if(lbl)lbl.textContent=labels[next]?`До «${labels[next]}»`:'Максимум наград'
-    if(nextVal)nextVal.textContent=pts<400?`ещё ${rem} ⭐`:'✓'
-    // Загружаем актуальный баланс с сервера (тихо)
-    if(u._tgId) loadServerPoints()
-  }else if(bpBlk)bpBlk.style.display='none'
+  // Блок бонусных баллов: баланс, шкала наград, ваучеры (js/screens/rewards.js)
+  renderPoints()
+  if(u._tgId){loadServerPoints();loadVouchers()}
   // Статус в зависимости от баллов и количества бронирований
   const stEl=document.getElementById('ps-status')?.querySelector('.ps-n')
   if(stEl){
@@ -213,80 +185,121 @@ function renderProfile(){
 // ═══════════════════════════════════════════════
 // REGISTRATION
 // ═══════════════════════════════════════════════
+// ДД.ММ.ГГГГ по мере ввода: точки ставятся сами
+function maskDate(v){
+  const d=String(v||'').replace(/\D/g,'').slice(0,8)
+  return d.slice(0,2)+(d.length>2?'.'+d.slice(2,4):'')+(d.length>4?'.'+d.slice(4):'')
+}
+// «17.05.2000» → {str, age} · '' → пусто (поле необязательное) · null → такой даты нет
+function parseBday(v){
+  const t=String(v||'').trim();if(!t)return {str:'',age:''}
+  const m=t.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);if(!m)return null
+  const dd=+m[1],mm=+m[2],yy=+m[3],dt=new Date(Date.UTC(yy,mm-1,dd))
+  if(dt.getUTCFullYear()!==yy||dt.getUTCMonth()!==mm-1||dt.getUTCDate()!==dd)return null
+  const p=clubNow().date.split('.').map(Number)
+  let age=p[2]-yy;if(p[1]<mm||(p[1]===mm&&p[0]<dd))age--
+  if(age<5||age>100)return null
+  return {str:t,age:String(age)}
+}
+const phoneOk=v=>{const d=String(v||'').replace(/\D/g,'');return d.length===12&&d.startsWith('375')}
+// Ошибка под полем (пустая строка — убрать)
+function regErr(field,msg){
+  const f=document.getElementById('rg-f-'+field);if(!f)return
+  f.classList.toggle('err',!!msg)
+  const e=f.querySelector('.rg-e');if(e)e.textContent=msg||''
+}
+function regMarks(){
+  const ph=document.getElementById('r-phone'),bd=document.getElementById('r-bday')
+  document.getElementById('rg-f-phone').classList.toggle('ok',phoneOk(ph.value))
+  const b=parseBday(bd.value)
+  document.getElementById('rg-f-bday').classList.toggle('ok',!!(b&&b.str))
+}
+
 function openRegModal(){
   openM('reg-m')
-  const u=D.user
-  // Телефон набирается сразу в формате +375 XX XXX-XX-XX
-  const ph=document.getElementById('r-phone')
-  if(ph&&!ph._mask){ph._mask=true;ph.addEventListener('input',()=>{ph.value=maskPhone(ph.value)});ph.addEventListener('focus',()=>{if(!ph.value)ph.value='+375 '})}
-  const nameEl=document.getElementById('r-name')
-  const phoneEl=document.getElementById('r-phone')
-  const ageEl=document.getElementById('r-bday')
-  const titleEl=document.querySelector('#reg-m .MT')
-  // Если уже зарегистрирован — режим редактирования
+  const u=D.user,$=id=>document.getElementById(id)
+  const nameEl=$('r-name'),phoneEl=$('r-phone'),bdEl=$('r-bday')
+  if(!phoneEl._mask){
+    phoneEl._mask=true
+    // Телефон набирается сразу в формате +375 XX XXX-XX-XX
+    phoneEl.addEventListener('input',()=>{phoneEl.value=maskPhone(phoneEl.value);regErr('phone','');regMarks()})
+    phoneEl.addEventListener('focus',()=>{if(!phoneEl.value)phoneEl.value='+375 '})
+    phoneEl.addEventListener('blur',()=>{if(phoneEl.value.replace(/\D/g,'')==='375')phoneEl.value=''})
+    bdEl.addEventListener('input',()=>{bdEl.value=maskDate(bdEl.value);regErr('bday','');regMarks()})
+    nameEl.addEventListener('input',()=>regErr('name',''))
+    // Enter ведёт по полям, на последнем — сохраняет
+    nameEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();phoneEl.focus()}})
+    phoneEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();bdEl.focus()}})
+    bdEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveReg()}})
+    // Клавиатура не должна закрывать поле, в которое печатают
+    ;[nameEl,phoneEl,bdEl].forEach(el=>el.addEventListener('focus',()=>setTimeout(()=>scrollToEl(el),280)))
+  }
+  ;['name','phone','bday'].forEach(f=>regErr(f,''))
+  // Аватар: фото из Telegram, иначе первая буква имени
+  const av=$('rg-av'),letter=String(u.reg?u.name:'').trim()[0]
+  if(u._tgPhoto){av.innerHTML=`<img src="${u._tgPhoto}" alt="">`;av.querySelector('img').onerror=function(){av.textContent='🎮'}}
+  else av.textContent=letter?letter.toUpperCase():'🎮'
+  $('rg-l-name').textContent=T('Имя или ник','Name or nickname')
+  $('rg-l-phone').textContent=T('Телефон','Phone')
+  $('rg-l-bday').textContent=T('Дата рождения','Date of birth')
+  $('rg-opt').textContent=T('необязательно','optional')
+  $('rg-h-phone').textContent=T('Только чтобы подтвердить бронь — без рекламы и звонков','Only to confirm your booking — no ads, no calls')
+  $('rg-h-bday').innerHTML=T('Подарим <b>+50 ⭐</b> в твой день','We gift <b>+50 ⭐</b> on your day')
+  nameEl.placeholder=T('Как тебя зовут?','What should we call you?')
+  bdEl.placeholder=T('ДД.ММ.ГГГГ','DD.MM.YYYY')
+  $('rg-save').textContent=T('Сохранить','Save')
   if(u.reg){
-    if(titleEl)titleEl.textContent=D.lang==='en'?'Edit profile':D.lang==='zh'?'编辑资料':'Редактировать профиль'
-    if(nameEl)nameEl.value=u.name||''
-    if(phoneEl)phoneEl.value=u.phone||''
-    // bday хранится dd.MM.yyyy → конвертируем в yyyy-MM-dd для input[type=date]
-    if(ageEl&&u.bday){const p=u.bday.split('.');if(p.length===3)ageEl.value=p[2]+'-'+p[1]+'-'+p[0]}
+    // Уже зарегистрирован — режим редактирования
+    $('reg-title').textContent=T('Мой профиль','My profile')
+    $('rg-sub').textContent=T('Исправь, если что-то изменилось','Update anything that changed')
+    $('rg-perks').innerHTML=''
+    $('rg-later').textContent=T('Отмена','Cancel')
+    nameEl.value=u.name||'';phoneEl.value=u.phone||'';bdEl.value=u.bday||''
   }else{
-    if(titleEl)titleEl.textContent=I18N[D.lang].regTitle
+    $('reg-title').textContent=T('Давай знакомиться','Let’s get you set up')
+    $('rg-sub').textContent=T('Три поля — и бронь в пару касаний','Three fields — then booking takes two taps')
+    $('rg-perks').innerHTML=[['⚡',T('Бронь','Booking'),T('без ввода данных','with no retyping')],['⭐',T('Баллы','Points'),T('за каждую игру','for every session')],['🎂','+50 ⭐',T('в день рождения','on your birthday')]]
+      .map(x=>`<div><i>${x[0]}</i><b>${x[1]}</b><span>${x[2]}</span></div>`).join('')
+    $('rg-later').textContent=T('Позже','Later')
     try{
       const tu=window.Telegram?.WebApp?.initDataUnsafe?.user
-      if(nameEl&&!nameEl.value&&tu?.first_name)nameEl.value=(tu.first_name+(tu.last_name?' '+tu.last_name:'')).trim()
+      if(!nameEl.value&&tu?.first_name)nameEl.value=(tu.first_name+(tu.last_name?' '+tu.last_name:'')).trim()
     }catch(e){}
-    if(u.name&&nameEl&&!nameEl.value)nameEl.value=u.name
-    if(u.phone&&phoneEl&&!phoneEl.value)phoneEl.value=u.phone
-    if(u.bday&&ageEl&&!ageEl.value){const p=u.bday.split('.');if(p.length===3)ageEl.value=p[2]+'-'+p[1]+'-'+p[0]}
+    if(u.name&&u.name!=='Toxic Player'&&!nameEl.value)nameEl.value=u.name
+    if(u.phone&&!phoneEl.value)phoneEl.value=u.phone
+    if(u.bday&&!bdEl.value)bdEl.value=u.bday
   }
+  regMarks()
 }
 
 function saveReg(){
-  const wasNew=!D.user.reg
-  const name=document.getElementById('r-name').value.trim()
-  const phone=document.getElementById('r-phone').value.trim()
-  const bday=document.getElementById('r-bday')?.value||''
-  const L=D.lang
-  // ── Имя: 2-40 символов, без HTML ──
-  if(!name||name.length<2){
-    toast(L==='en'?'Name must be at least 2 characters':L==='zh'?'姓名至少2个字符':'Имя минимум 2 символа','⚠️');return
-  }
-  if(name.length>40||/[<>{}]/.test(name)){
-    toast(L==='en'?'Invalid name':L==='zh'?'无效姓名':'Недопустимое имя','⚠️');return
-  }
-  // ── Телефон: строго +375 (Беларусь) ──
-  const phoneDigits=phone.replace(/\D/g,'')
-  if(!phoneDigits.startsWith('375')||phoneDigits.length!==12){
-    toast(L==='en'?'Phone must be +375 XX XXX-XX-XX':L==='zh'?'电话必须是 +375 格式':'Формат: +375 XX XXX-XX-XX','⚠️')
-    const el=document.getElementById('phone-err')
-    if(el){el.style.display='block';el.textContent=L==='en'?'Belarus number +375 required':L==='zh'?'需要白俄罗斯号码 +375':'Нужен белорусский номер +375'}
+  const wasNew=!D.user.reg,$=id=>document.getElementById(id)
+  const name=$('r-name').value.trim().replace(/\s+/g,' ')
+  const phone=$('r-phone').value.trim()
+  const bd=parseBday($('r-bday').value)
+  // Все ошибки — сразу и под своими полями (раньше была одна всплывашка, а поле не подсвечивалось)
+  const eName=name.length<2?T('Минимум 2 символа','At least 2 characters'):(name.length>40||/[<>{}]/.test(name))?T('Без символов < > { }','No < > { } symbols'):''
+  const ePhone=phoneOk(phone)?'':T('Белорусский номер: +375 XX XXX-XX-XX','Belarus number: +375 XX XXX-XX-XX')
+  const eBday=bd?'':T('Такой даты нет — проверь день, месяц и год','That date does not exist — check day, month and year')
+  regErr('name',eName);regErr('phone',ePhone);regErr('bday',eBday)
+  if(eName||ePhone||eBday){
+    haptic('err')
+    const first=$(eName?'r-name':ePhone?'r-phone':'r-bday')
+    try{first.focus({preventScroll:true})}catch(e){}
+    scrollToEl(first)
     return
   }
-  // Скрываем ошибку телефона
-  const phoneErr=document.getElementById('phone-err');if(phoneErr)phoneErr.style.display='none'
-  // ── Форматируем телефон красиво ──
-  const formatted='+'+phoneDigits.slice(0,3)+' '+phoneDigits.slice(3,5)+' '+phoneDigits.slice(5,8)+'-'+phoneDigits.slice(8,10)+'-'+phoneDigits.slice(10,12)
-  // ── Дата рождения → dd.MM.yyyy + возраст ──
-  let bdayStr='',age=''
-  if(bday){
-    const bd=new Date(bday)
-    if(!isNaN(bd.getTime())){
-      bdayStr=String(bd.getDate()).padStart(2,'0')+'.'+String(bd.getMonth()+1).padStart(2,'0')+'.'+bd.getFullYear()
-      const now=new Date();let a=now.getFullYear()-bd.getFullYear()
-      const m=now.getMonth()-bd.getMonth();if(m<0||(m===0&&now.getDate()<bd.getDate()))a--
-      if(a>=0&&a<=120)age=String(a)
-    }
-  }
-  Object.assign(D.user,{name,phone:formatted,age:age||D.user.age||'',bday:bdayStr,reg:true,handle:name.toLowerCase().replace(/[^a-zа-яё0-9]/gi,'_').substring(0,30)})
-  sv();closeM('reg-m');renderProfile()
+  const formatted=maskPhone(phone)
+  Object.assign(D.user,{name,phone:formatted,age:bd.str?bd.age:(D.user.age||''),bday:bd.str,reg:true,handle:name.toLowerCase().replace(/[^a-zа-яё0-9]/gi,'_').substring(0,30)})
+  sv();closeM('reg-m');renderProfile();renderOb()
   const gn=document.getElementById('gr-n');if(gn)gn.textContent=name
-  toast(L==='en'?'Profile saved!':L==='zh'?'资料已保存！':'Профиль сохранён ✓')
+  haptic('ok')
+  toast(T('Профиль сохранён','Profile saved'),'✅')
   // Новичку (только при ПЕРВОЙ регистрации) — показываем подсказки
   if(wasNew&&!D.user._hintsSeen){D.user._wnSeen=WN_VERSION;sv();go('home');setTimeout(startHints,600)}
   else if(!wasNew&&D.user._hintsSeen===undefined){D.user._hintsSeen=true;sv()}
   // Синхронизируем на сервер (для дня рождения)
   if(D.user._tgId){
-    fetch(API_URL+'?'+new URLSearchParams({action:'saveUserProfile',tgId:D.user._tgId,user:name,phone:formatted,birthday:bdayStr,_t:Date.now()})).catch(()=>{})
+    fetch(API_URL+'?'+new URLSearchParams({action:'saveUserProfile',tgId:D.user._tgId,user:name,phone:formatted,birthday:bd.str,_t:Date.now()})).catch(()=>{})
   }
 }

@@ -50,8 +50,6 @@ function go(id){
   // В процессе брони нижнее меню прячется — как в iOS, оно не закрывает кнопки «Дальше»
   document.body.classList.toggle('in-flow',id==='book')
   try{logAct('экран: '+id)}catch(e){}
-  // Ушли с онбординга — гасим его слайдер (иначе крутится весь сеанс)
-  if(id!=='ob'&&_obTimer){clearInterval(_obTimer);_obTimer=null}
   syncTgBack(id)
   try{if(id==='bklist'){renderBkList();syncMyBookings().then(ch=>{if(ch&&D.cur==='bklist')renderBkList()}).catch(()=>{})}}catch(e){/*silenced*/}
   try{if(id==='profile')renderProfile()}catch(e){/*silenced*/}
@@ -98,6 +96,16 @@ function openM(id){
   requestAnimationFrame(()=>el.classList.add('open'))
   if(id==='bug-m'){try{renderBugDiag()}catch(e){}}
   try{logAct('открыл: '+id)}catch(e){}
+}
+// Прокрутить элемент к середине ближайшего прокручиваемого окна (шторки или экрана).
+// scrollIntoView() двигал заодно и всю страницу: приложение уезжало вверх, снизу оставалась чёрная полоса
+function scrollToEl(el,top){
+  try{
+    const box=el.closest('.MOD,.sB,.ob-in');if(!box)return
+    const r=el.getBoundingClientRect(),b=box.getBoundingClientRect()
+    const y=box.scrollTop+(r.top-b.top)-(top!=null?top:(box.clientHeight-r.height)/2)
+    box.scrollTo({top:Math.max(0,y),behavior:'smooth'})
+  }catch(e){}
 }
 function closeM(id){
   const el=document.getElementById(id);if(!el)return

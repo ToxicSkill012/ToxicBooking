@@ -6,7 +6,7 @@
 // Проверка бота — теперь в панели владельца: тест от каждого бота с точной причиной ошибки
 function testBot(){
   const box=document.getElementById('adm-tg')
-  if(box){box.scrollIntoView({behavior:'smooth',block:'center'});adminTestNotif()}
+  if(box){scrollToEl(box);adminTestNotif()}
 }
 
 let _bugCat='',_bugShot=null
@@ -132,9 +132,10 @@ function doDelAccount(){
   Object.assign(D.user,{name:'Toxic Player',handle:'',phone:'',age:'',bday:'',reg:false,bks:[],hrs:0,_hintsSeen:false})
   sv()
   // go() сам прячет меню и кнопку «Назад»; слайды онбординга запускаем заново
-  go('ob');obSlide(0)
+  go('ob')
   const btn=document.getElementById('ob-btn')
-  if(btn){btn.disabled=false;btn.innerHTML='<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>'+_('loginBtn')+'</span>'}
+  if(btn)btn.disabled=false
+  renderOb()
   // Если уже есть данные из Telegram — сразу входим
   try{
     const tu=window.Telegram?.WebApp?.initDataUnsafe?.user
